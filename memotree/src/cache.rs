@@ -1,4 +1,4 @@
-//! # Rust Cache Library
+//! # Memotree Library
 //!
 //! This is a robust cache library implemented in Rust. It provides a `Cache` struct that allows you to store key-value pairs with a fixed capacity and perform various operations on the cache.
 //!

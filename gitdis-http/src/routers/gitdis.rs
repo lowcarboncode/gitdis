@@ -3,6 +3,7 @@ use gitdis::prelude::*;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use valu3::value::Value;
+use gitdis::prelude::valu3::prelude::ToValueBehavior;
 
 use super::{ArcGitdisService, MessageError, Response};
 
@@ -43,14 +44,14 @@ fn resolve_errors(err: GitdisServiceError) -> Response<MessageError> {
 pub async fn create_repo(
     Extension(gitdis): Extension<ArcGitdisService>,
     Json(payload): Json<CreateRepo>,
-) -> Result<Response<ObjectBranchData>, Response<MessageError>> {
+) -> Result<Response<Value>, Response<MessageError>> {
     debug!("Creating new repo router");
     let mut services = gitdis.write().unwrap();
 
     match services.create_repo(payload.into()) {
         Ok(data) => Ok(Response {
             status: http::StatusCode::CREATED,
-            data,
+            data: data.to_value(),
         }),
         Err(err) => Err(resolve_errors(err)),
     }

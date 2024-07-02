@@ -1,7 +1,7 @@
 use super::gitdis::{BranchSettings, Gitdis, GitdisError};
 use log::debug;
 use memotree::valu3::prelude::*;
-use serde::Serialize;
+use memotree::valu3::prelude::{ToValueBehavior, ToJsonBehavior};
 use std::sync::{mpsc::Sender, Arc, RwLock};
 
 pub type ArcGitdisService = Arc<RwLock<GitdisService>>;
@@ -17,7 +17,7 @@ pub struct GitdisService {
     pub gitdis: Gitdis,
 }
 
-#[derive(Serialize)]
+#[derive(ToValue, ToJson)]
 pub struct ObjectBranchData {
     key: String,
     create_at: u128,
