@@ -1,0 +1,3 @@
+[workspace]
+members = ["gcs", "memotree"]
+resolver = "2"

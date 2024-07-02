@@ -1,2 +1,1 @@
-# gcs
-Git Config Server
+# Gitdis
