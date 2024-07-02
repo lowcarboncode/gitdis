@@ -1,12 +1,8 @@
 use axum::{extract::Path, http, Extension, Json};
+use gitdis::prelude::*;
 use log::debug;
-use memotree::valu3::prelude::*;
 use serde::{Deserialize, Serialize};
-
-use crate::git_dis::{
-    git_dis::BranchSettings,
-    services::{Error, ObjectBranchData},
-};
+use valu3::value::Value;
 
 use super::{ArcGitdisService, MessageError, Response};
 
@@ -27,17 +23,17 @@ impl Into<BranchSettings> for CreateRepo {
     }
 }
 
-fn resolve_errors(err: Error) -> Response<MessageError> {
+fn resolve_errors(err: GitdisServiceError) -> Response<MessageError> {
     match err {
-        Error::RepoAlreadyExists => Response {
+        GitdisServiceError::RepoAlreadyExists => Response {
             status: http::StatusCode::CONFLICT,
             data: MessageError::new("Repo already exists".to_string()),
         },
-        Error::BranchNotFound => Response {
+        GitdisServiceError::BranchNotFound => Response {
             status: http::StatusCode::NOT_FOUND,
             data: MessageError::new("Branch not found".to_string()),
         },
-        Error::InternalError(err) => Response {
+        GitdisServiceError::InternalError(err) => Response {
             status: http::StatusCode::INTERNAL_SERVER_ERROR,
             data: MessageError::new(err),
         },
@@ -70,10 +66,7 @@ pub struct ObjectParams {
 
 impl ObjectParams {
     fn get_branch_key(&self) -> String {
-        format!(
-            "{}/{}/{}",
-            self.owner, self.repo, self.branch
-        )
+        format!("{}/{}/{}", self.owner, self.repo, self.branch)
     }
 }
 
@@ -81,8 +74,7 @@ pub async fn get_object(
     Extension(gitdis): Extension<ArcGitdisService>,
     Path(params): Path<ObjectParams>,
 ) -> Result<Response<Option<Value>>, Response<MessageError>> {
-    let services: std::sync::RwLockReadGuard<crate::git_dis::services::GitdisServices> =
-        gitdis.read().unwrap();
+    let services: std::sync::RwLockReadGuard<GitdisService> = gitdis.read().unwrap();
 
     let branch_key = params.get_branch_key();
 

@@ -1,9 +1,6 @@
+use crate::routers::routes;
+use gitdis::services::ArcGitdisService;
 use log::debug;
-use routers::routes;
-
-use crate::git_dis::services::ArcGitdisService;
-
-mod routers;
 
 pub struct HttpServer {
     port: String,

@@ -411,21 +411,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gcs"
-version = "0.1.0"
-dependencies = [
- "axum",
- "dotenv",
- "env_logger",
- "log",
- "memotree",
- "serde",
- "serde_json",
- "tokio",
- "yaml2json",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -440,6 +425,35 @@ name = "gimli"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ecd4077b5ae9fd2e9e169b102c6c330d0605168eb0e8bf79952b256dbefffd"
+
+[[package]]
+name = "gitdis"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "dotenv",
+ "env_logger",
+ "log",
+ "memotree",
+ "serde",
+ "serde_json",
+ "tokio",
+ "yaml2json",
+]
+
+[[package]]
+name = "gitdis-http"
+version = "0.0.1"
+dependencies = [
+ "axum",
+ "dotenv",
+ "env_logger",
+ "gitdis",
+ "log",
+ "serde",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "hashbrown"
@@ -644,7 +658,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "memotree"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "byte",
  "regex",

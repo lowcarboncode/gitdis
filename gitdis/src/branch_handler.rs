@@ -12,14 +12,14 @@ const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
 const EXT_YAML: &str = ".yaml";
 
-pub enum Error {
+pub enum BranchHandlerError {
     GitError((Option<i32>, String)),
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for BranchHandlerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::GitError((code, error)) => {
+            BranchHandlerError::GitError((code, error)) => {
                 write!(f, "Git error: code: {:?}, error: {}", code, error)
             }
         }
@@ -95,7 +95,7 @@ impl BranchHandler {
     }
 
     /// Get the data from the repository instantly
-    pub fn clone_and_get_data(&self) -> Result<HashMap<String, Value>, Error> {
+    pub fn clone_and_get_data(&self) -> Result<HashMap<String, Value>, BranchHandlerError> {
         if !std::path::Path::new(&self.clone_path).exists() {
             std::fs::create_dir(&self.clone_path).expect("Failed to create repo directory");
         }
@@ -105,7 +105,7 @@ impl BranchHandler {
     }
 
     /// Start the listener to listen for changes in the repository
-    pub fn listener(&mut self) -> Result<(), Error> {
+    pub fn listener(&mut self) -> Result<(), BranchHandlerError> {
         self.setup()?;
 
         loop {
@@ -116,7 +116,7 @@ impl BranchHandler {
         }
     }
 
-    fn setup(&mut self) -> Result<(), Error> {
+    fn setup(&mut self) -> Result<(), BranchHandlerError> {
         if !std::path::Path::new(&self.clone_path).exists() {
             std::fs::create_dir(&self.clone_path).expect("Failed to create repo directory");
         }
@@ -130,7 +130,7 @@ impl BranchHandler {
         Ok(())
     }
 
-    fn update(&mut self) -> Result<(), Error> {
+    fn update(&mut self) -> Result<(), BranchHandlerError> {
         self.pull()?;
 
         let current_commit_hash = self.get_commit_hash()?;
@@ -237,7 +237,7 @@ impl BranchHandler {
         key.replace(&format!("{}/", &self.repo_path), "").split(".").next().unwrap().to_string()
     }
 
-    fn get_initial_data(&self) -> Result<HashMap<String, Value>, Error> {
+    fn get_initial_data(&self) -> Result<HashMap<String, Value>, BranchHandlerError> {
         let files = self.list_all_files(&self.clone_path);
         let mut data = HashMap::new();
 
@@ -254,7 +254,7 @@ impl BranchHandler {
         Ok(data)
     }
 
-    fn load_initial_data(&mut self) -> Result<(), Error> {
+    fn load_initial_data(&mut self) -> Result<(), BranchHandlerError> {
         let data = self.get_initial_data()?;
 
         match self.branch.write() {
@@ -312,7 +312,7 @@ impl BranchHandler {
         files
     }
 
-    fn clone(&self) -> Result<(), Error> {
+    fn clone(&self) -> Result<(), BranchHandlerError> {
         debug!("Cloning repository");
 
         if std::path::Path::new(&self.repo_path).exists() {
@@ -331,13 +331,13 @@ impl BranchHandler {
         if !output.status.success() {
             let code = output.status.code();
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::GitError((code, error.to_string())));
+            return Err(BranchHandlerError::GitError((code, error.to_string())));
         }
 
         Ok(())
     }
 
-    fn pull(&self) -> Result<(), Error> {
+    fn pull(&self) -> Result<(), BranchHandlerError> {
         debug!("Pulling changes");
 
         let output = Command::new("git")
@@ -349,13 +349,13 @@ impl BranchHandler {
         if !output.status.success() {
             let code = output.status.code();
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::GitError((code, error.to_string())));
+            return Err(BranchHandlerError::GitError((code, error.to_string())));
         }
 
         Ok(())
     }
 
-    fn diff_stat(&mut self) -> Result<String, Error> {
+    fn diff_stat(&mut self) -> Result<String, BranchHandlerError> {
         debug!("Getting diff stat");
 
         let output = Command::new("git")
@@ -371,7 +371,7 @@ impl BranchHandler {
         if !output.status.success() {
             let code = output.status.code();
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::GitError((code, error.to_string())));
+            return Err(BranchHandlerError::GitError((code, error.to_string())));
         }
 
         let output = String::from_utf8_lossy(&output.stdout).to_string();
@@ -379,7 +379,7 @@ impl BranchHandler {
         Ok(output)
     }
 
-    fn get_commit_hash(&mut self) -> Result<String, Error> {
+    fn get_commit_hash(&mut self) -> Result<String, BranchHandlerError> {
         let output = Command::new("git")
             .arg("rev-parse")
             .arg("HEAD")
@@ -390,7 +390,7 @@ impl BranchHandler {
         if !output.status.success() {
             let code = output.status.code();
             let error = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::GitError((code, error.to_string())));
+            return Err(BranchHandlerError::GitError((code, error.to_string())));
         }
 
         let output = String::from_utf8_lossy(&output.stdout).to_string();

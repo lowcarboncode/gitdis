@@ -1,5 +1,5 @@
 mod extras;
-mod git_dis;
+mod gitdis;
 use axum::{
     body::Body,
     http::{self, StatusCode},
@@ -8,11 +8,9 @@ use axum::{
     Extension, Router,
 };
 use extras::health_check;
-use git_dis::{create_repo, get_object};
+use ::gitdis::services::ArcGitdisService;
+use gitdis::{create_repo, get_object};
 use serde::Serialize;
-
-
-use crate::git_dis::services::ArcGitdisService;
 
 #[derive(Serialize)]
 pub struct MessageError {

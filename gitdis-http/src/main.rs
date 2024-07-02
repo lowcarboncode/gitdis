@@ -1,12 +1,9 @@
-mod git_dis;
-mod server;
+mod http;
+mod routers;
 use dotenv::dotenv;
-use git_dis::{
-    git_dis::{Gitdis, GitdisSettings},
-    services::GitdisServices,
-};
+use gitdis::prelude::*;
+use http::HttpServer;
 use log::debug;
-use server::HttpServer;
 use std::sync::{Arc, RwLock};
 
 #[tokio::main]
@@ -36,7 +33,7 @@ async fn main() -> std::io::Result<()> {
         local_clone_path,
     });
 
-    let service = Arc::new(RwLock::new(GitdisServices::new(sender, gitdis)));
+    let service = Arc::new(RwLock::new(GitdisService::new(sender, gitdis)));
 
     let server = HttpServer::new(http_port, service.clone());
 

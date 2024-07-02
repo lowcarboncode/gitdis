@@ -10,7 +10,7 @@ use memotree::branch::Branch;
 use super::branch_handler;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum GitdisError {
     RepoExists,
     Sender(SendError<BranchSettings>),
 }
@@ -77,7 +77,7 @@ impl ObjectBranch {
 }
 
 pub struct Gitdis {
-    pub(crate) settings: GitdisSettings,
+    pub settings: GitdisSettings,
     branches: HashMap<String, ObjectBranch>,
 }
 
@@ -103,7 +103,7 @@ impl Gitdis {
         }
     }
 
-    pub fn add_repo(&mut self, settings: BranchSettings) -> Result<(), Error> {
+    pub fn add_repo(&mut self, settings: BranchSettings) -> Result<(), GitdisError> {
         debug!("Adding new repo");
 
         let repo_key = settings.get_repo_key();
@@ -112,7 +112,7 @@ impl Gitdis {
 
         if self.branches.contains_key(&repo_key) {
             debug!("Repo already exists");
-            return Err(Error::RepoExists);
+            return Err(GitdisError::RepoExists);
         }
 
         let key = settings.get_repo_key();
