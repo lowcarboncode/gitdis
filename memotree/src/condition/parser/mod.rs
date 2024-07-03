@@ -445,7 +445,34 @@ mod tests {
                 {
                     "$and": [
                         {"innerAge": 18},
-                        {"innerLevel": 30}
+                        {"innerLevel": 30},
+                        {
+                          "$or": [
+                            {"food": "pizza"},
+                            {"price": 10.0 },
+                            {
+                                "music": "rock",
+                                "hanking": [
+                                    {"name": "John"},
+                                    {"name": "Doe"}
+                                ]
+                            }
+                          ]
+                        }
+                    ]
+                },
+                {
+                    "$or": [
+                        {"fruit": "banana"},
+                        {"position": 1},
+                        {
+                            "$and": [
+                                {
+                                    "fruit": "banana",
+                                    "position": 1
+                                }
+                            ]
+                        }
                     ]
                 },
                 {
@@ -503,6 +530,69 @@ mod tests {
                                     operator: Operator::Equal,
                                     left: "innerLevel".to_value(),
                                     right: Some(30).to_value(),
+                                }),
+                                ConditionToken::LogicalOperator(LogicalOperator::And),
+                                ConditionToken::ConditionGroup(ConditionGroup {
+                                    conditions: vec![
+                                        ConditionToken::Condition(Condition {
+                                            operator: Operator::Equal,
+                                            left: "food".to_value(),
+                                            right: Some("pizza").to_value(),
+                                        }),
+                                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                                        ConditionToken::Condition(Condition {
+                                            operator: Operator::Equal,
+                                            left: "price".to_value(),
+                                            right: Some(10.0).to_value(),
+                                        }),
+                                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                                        ConditionToken::Condition(Condition {
+                                            operator: Operator::Equal,
+                                            left: "music".to_value(),
+                                            right: Some("rock").to_value(),
+                                        }),
+                                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                                        ConditionToken::Condition(Condition {
+                                            operator: Operator::Equal,
+                                            left: "hanking".to_value(),
+                                            right: Some(vec![
+                                                Object::from(vec![("name", "John")]),
+                                                Object::from(vec![("name", "Doe")]),
+                                            ]).to_value(),
+                                        }),
+                                    ],
+                                }),
+                            ],
+                        }),
+                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                        ConditionToken::ConditionGroup(ConditionGroup {
+                            conditions: vec![
+                                ConditionToken::Condition(Condition {
+                                    operator: Operator::Equal,
+                                    left: "fruit".to_value(),
+                                    right: Some("banana").to_value(),
+                                }),
+                                ConditionToken::LogicalOperator(LogicalOperator::Or),
+                                ConditionToken::Condition(Condition {
+                                    operator: Operator::Equal,
+                                    left: "position".to_value(),
+                                    right: Some(1).to_value(),
+                                }),
+                                ConditionToken::LogicalOperator(LogicalOperator::Or),
+                                ConditionToken::ConditionGroup(ConditionGroup {
+                                    conditions: vec![
+                                        ConditionToken::Condition(Condition {
+                                            operator: Operator::Equal,
+                                            left: "fruit".to_value(),
+                                            right: Some("banana").to_value(),
+                                        }),
+                                        ConditionToken::LogicalOperator(LogicalOperator::And),
+                                        ConditionToken::Condition(Condition {
+                                            operator: Operator::Equal,
+                                            left: "position".to_value(),
+                                            right: Some(1).to_value(),
+                                        }),
+                                    ],
                                 }),
                             ],
                         }),
