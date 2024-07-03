@@ -20,7 +20,7 @@ fn parse_pairs_to_clause(pairs: pest::iterators::Pairs<Rule>) -> Result<Clause, 
     for pair in pairs {
         match pair.as_rule() {
             Rule::object => {
-                let mut map = parse_object(pair.into_inner(), true)?;
+                let mut map = parse_object(pair.into_inner(), false, LogicalOperator::And)?;
                 conditions.append(&mut map);
             }
             Rule::EOI => {
@@ -33,9 +33,10 @@ fn parse_pairs_to_clause(pairs: pest::iterators::Pairs<Rule>) -> Result<Clause, 
     Ok(Clause::ConditionGroup(ConditionGroup { conditions }))
 }
 
-fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Vec<ConditionToken>, String> {
+fn parse_object(pairs: pest::iterators::Pairs<Rule>, group: bool, mut last_logical: LogicalOperator) -> Result<Vec<ConditionToken>, String> {
     let mut conditions = vec![];
-    let mut not_logical = false;
+    let mut last_is_logical = true;
+
     for pair in pairs {
         match pair.as_rule() {
             Rule::pair => {
@@ -45,15 +46,10 @@ fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Ve
 
                 match key.as_str() {
                     "$and" => {
-                        let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::And, initial)?;
-                        conditions.append(&mut sub_conditions);
-                        not_logical = false;
-                    }
-                    "$or" => {
-                        let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::Or, initial)?;
+                        let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::And, group)?;
 
-                        if not_logical {
-                            conditions.push(ConditionToken::LogicalOperator(LogicalOperator::And));
+                        if !last_is_logical {
+                            conditions.push(ConditionToken::LogicalOperator(last_logical.clone()));
                             conditions.push(ConditionToken::ConditionGroup(ConditionGroup {
                                 conditions: sub_conditions,
                             }));
@@ -61,17 +57,33 @@ fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Ve
                             conditions.append(&mut sub_conditions);
                         }
 
-                        not_logical = false;
+                        last_is_logical = true;
+                        last_logical = LogicalOperator::And;
+                    }
+                    "$or" => {
+                        let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::Or, group)?;
+
+                        if !last_is_logical {
+                            conditions.push(ConditionToken::LogicalOperator(last_logical.clone()));
+                            conditions.push(ConditionToken::ConditionGroup(ConditionGroup {
+                                conditions: sub_conditions,
+                            }));
+                        } else {
+                            conditions.append(&mut sub_conditions);
+                        }
+
+                        last_is_logical = true;
+                        last_logical = LogicalOperator::Or;
                     }
                     _ => {
-                        if not_logical {
-                            conditions.push(ConditionToken::LogicalOperator(LogicalOperator::And));
+                        if !group && !last_is_logical {
+                            conditions.push(ConditionToken::LogicalOperator(last_logical.clone()));
                         }
 
                         let condition = parse_condition(key, value)?;
                         conditions.push(ConditionToken::Condition(condition));
 
-                        not_logical = true;
+                        last_is_logical = false;
                     }
                 }
             }
@@ -134,13 +146,16 @@ fn parse_value(pair: pest::iterators::Pair<Rule>) -> Result<Value, String> {
     }
 }
 
-fn parse_logical_operator(pairs: pest::iterators::Pairs<Rule>, logical_operator: LogicalOperator, initial: bool) -> Result<Vec<ConditionToken>, String> {
+fn parse_logical_operator(
+    pairs: pest::iterators::Pairs<Rule>,
+    logical_operator: LogicalOperator,
+    group: bool) -> Result<Vec<ConditionToken>, String> {
     let mut conditions = vec![];
 
     for pair in pairs {
         match pair.as_rule() {
             Rule::object => {
-                let mut map = parse_object(pair.into_inner(), false)?;
+                let mut map = parse_object(pair.into_inner(), true, logical_operator.clone())?;
                 conditions.append(&mut map);
             }
             rule => return Err(format!("Unexpected rule parse_array: {:?}", rule)),
@@ -155,7 +170,7 @@ fn parse_logical_operator(pairs: pest::iterators::Pairs<Rule>, logical_operator:
         conditions_logical.push(condition);
     }
 
-    if !initial {
+    if group {
         Ok(vec![ConditionToken::ConditionGroup(ConditionGroup {
             conditions: conditions_logical,
         })])
@@ -426,7 +441,17 @@ mod tests {
             },
             "$or": [
                 {"age": 18},
-                {"age": 30}
+                {"level": 30},
+                {
+                    "$and": [
+                        {"innerAge": 18},
+                        {"innerLevel": 30}
+                    ]
+                },
+                {
+                    "fruit": "banana",
+                    "position": 1
+                }
             ]
         }"#;
 
@@ -462,8 +487,36 @@ mod tests {
                         ConditionToken::LogicalOperator(LogicalOperator::Or),
                         ConditionToken::Condition(Condition {
                             operator: Operator::Equal,
-                            left: "age".to_value(),
+                            left: "level".to_value(),
                             right: Some(30).to_value(),
+                        }),
+                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                        ConditionToken::ConditionGroup(ConditionGroup {
+                            conditions: vec![
+                                ConditionToken::Condition(Condition {
+                                    operator: Operator::Equal,
+                                    left: "innerAge".to_value(),
+                                    right: Some(18).to_value(),
+                                }),
+                                ConditionToken::LogicalOperator(LogicalOperator::And),
+                                ConditionToken::Condition(Condition {
+                                    operator: Operator::Equal,
+                                    left: "innerLevel".to_value(),
+                                    right: Some(30).to_value(),
+                                }),
+                            ],
+                        }),
+                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                        ConditionToken::Condition(Condition {
+                            operator: Operator::Equal,
+                            left: "fruit".to_value(),
+                            right: Some("banana").to_value(),
+                        }),
+                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                        ConditionToken::Condition(Condition {
+                            operator: Operator::Equal,
+                            left: "position".to_value(),
+                            right: Some(1).to_value(),
                         }),
                     ],
                 }),
