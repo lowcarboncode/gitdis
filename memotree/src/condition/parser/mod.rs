@@ -61,7 +61,6 @@ fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Ve
                             conditions.append(&mut sub_conditions);
                         }
 
-                        conditions.append(&mut sub_conditions);
                         not_logical = false;
                     }
                     _ => {
