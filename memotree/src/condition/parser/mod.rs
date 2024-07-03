@@ -35,7 +35,7 @@ fn parse_pairs_to_clause(pairs: pest::iterators::Pairs<Rule>) -> Result<Clause, 
 
 fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Vec<ConditionToken>, String> {
     let mut conditions = vec![];
-
+    let mut not_logical = false;
     for pair in pairs {
         match pair.as_rule() {
             Rule::pair => {
@@ -47,14 +47,32 @@ fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Ve
                     "$and" => {
                         let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::And, initial)?;
                         conditions.append(&mut sub_conditions);
+                        not_logical = false;
                     }
                     "$or" => {
                         let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::Or, initial)?;
+
+                        if not_logical {
+                            conditions.push(ConditionToken::LogicalOperator(LogicalOperator::And));
+                            conditions.push(ConditionToken::ConditionGroup(ConditionGroup {
+                                conditions: sub_conditions,
+                            }));
+                        } else {
+                            conditions.append(&mut sub_conditions);
+                        }
+
                         conditions.append(&mut sub_conditions);
+                        not_logical = false;
                     }
                     _ => {
+                        if not_logical {
+                            conditions.push(ConditionToken::LogicalOperator(LogicalOperator::And));
+                        }
+
                         let condition = parse_condition(key, value)?;
                         conditions.push(ConditionToken::Condition(condition));
+
+                        not_logical = true;
                     }
                 }
             }
@@ -74,7 +92,7 @@ fn parse_value(pair: pest::iterators::Pair<Rule>) -> Result<Value, String> {
         Rule::number => {
             let value = match Number::try_from(pair.as_str()) {
                 Ok(value) => value,
-                Err(e) => return Err(format!("Error parsing number: {:?}", e),),
+                Err(e) => return Err(format!("Error parsing number: {:?}", e)),
             };
 
             Ok(Value::Number(value))
@@ -170,9 +188,7 @@ fn parse_condition(key: String, pair: pest::iterators::Pair<Rule>) -> Result<Con
                 "$between" => Operator::Between,
                 "$notBetween" => Operator::NotBetween,
                 _ => {
-                    println!("Unexpected operator: {:?}", pair);
                     let value = parse_value(pair.clone())?;
-                    println!("Value: {:?}", value);
                     return Ok(Condition {
                         operator: Operator::Equal,
                         left: key.to_value(),
@@ -408,7 +424,11 @@ mod tests {
             "list": {
                 "a": 1,
                 "b": 2
-            }
+            },
+            "$or": [
+                {"age": 18},
+                {"age": 30}
+            ]
         }"#;
 
         let clause = parse_json_to_clause(json).unwrap();
@@ -420,15 +440,33 @@ mod tests {
                     left: "name".to_value(),
                     right: Some("John").to_value(),
                 }),
+                ConditionToken::LogicalOperator(LogicalOperator::And),
                 ConditionToken::Condition(Condition {
                     operator: Operator::Equal,
                     left: "items".to_value(),
                     right: Some(vec!["apple", "banana"]).to_value(),
                 }),
+                ConditionToken::LogicalOperator(LogicalOperator::And),
                 ConditionToken::Condition(Condition {
                     operator: Operator::Equal,
                     left: "list".to_value(),
                     right: Some(Object::from(vec![("a", 1), ("b", 2)])).to_value(),
+                }),
+                ConditionToken::LogicalOperator(LogicalOperator::And),
+                ConditionToken::ConditionGroup(ConditionGroup {
+                    conditions: vec![
+                        ConditionToken::Condition(Condition {
+                            operator: Operator::Equal,
+                            left: "age".to_value(),
+                            right: Some(18).to_value(),
+                        }),
+                        ConditionToken::LogicalOperator(LogicalOperator::Or),
+                        ConditionToken::Condition(Condition {
+                            operator: Operator::Equal,
+                            left: "age".to_value(),
+                            right: Some(30).to_value(),
+                        }),
+                    ],
                 }),
             ],
         });
