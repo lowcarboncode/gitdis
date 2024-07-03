@@ -26,14 +26,23 @@ fn parse_pairs_to_clause(pairs: pest::iterators::Pairs<Rule>) -> Result<Clause, 
             Rule::EOI => {
                 // Do nothing
             }
-            rule => return Err(format!("Unexpected rule in parse_pairs_to_clause: {:?}", rule)),
+            rule => {
+                return Err(format!(
+                    "Unexpected rule in parse_pairs_to_clause: {:?}",
+                    rule
+                ))
+            }
         }
     }
 
     Ok(Clause::ConditionGroup(ConditionGroup { conditions }))
 }
 
-fn parse_object(pairs: pest::iterators::Pairs<Rule>, group: bool, mut last_logical: LogicalOperator) -> Result<Vec<ConditionToken>, String> {
+fn parse_object(
+    pairs: pest::iterators::Pairs<Rule>,
+    group: bool,
+    mut last_logical: LogicalOperator,
+) -> Result<Vec<ConditionToken>, String> {
     let mut conditions = vec![];
     let mut last_is_logical = true;
 
@@ -46,32 +55,26 @@ fn parse_object(pairs: pest::iterators::Pairs<Rule>, group: bool, mut last_logic
 
                 match key.as_str() {
                     "$and" => {
-                        let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::And, group)?;
-
-                        if !last_is_logical {
-                            conditions.push(ConditionToken::LogicalOperator(last_logical.clone()));
-                            conditions.push(ConditionToken::ConditionGroup(ConditionGroup {
-                                conditions: sub_conditions,
-                            }));
-                        } else {
-                            conditions.append(&mut sub_conditions);
-                        }
-
+                        let mut sub_conditions = parse_logical_operator(
+                            value.into_inner(),
+                            LogicalOperator::And,
+                            group,
+                            last_is_logical,
+                            last_logical.clone(),
+                        )?;
+                        conditions.append(&mut sub_conditions);
                         last_is_logical = true;
                         last_logical = LogicalOperator::And;
                     }
                     "$or" => {
-                        let mut sub_conditions = parse_logical_operator(value.into_inner(), LogicalOperator::Or, group)?;
-
-                        if !last_is_logical {
-                            conditions.push(ConditionToken::LogicalOperator(last_logical.clone()));
-                            conditions.push(ConditionToken::ConditionGroup(ConditionGroup {
-                                conditions: sub_conditions,
-                            }));
-                        } else {
-                            conditions.append(&mut sub_conditions);
-                        }
-
+                        let mut sub_conditions = parse_logical_operator(
+                            value.into_inner(),
+                            LogicalOperator::Or,
+                            group,
+                            last_is_logical,
+                            last_logical.clone(),
+                        )?;
+                        conditions.append(&mut sub_conditions);
                         last_is_logical = true;
                         last_logical = LogicalOperator::Or;
                     }
@@ -149,7 +152,10 @@ fn parse_value(pair: pest::iterators::Pair<Rule>) -> Result<Value, String> {
 fn parse_logical_operator(
     pairs: pest::iterators::Pairs<Rule>,
     logical_operator: LogicalOperator,
-    group: bool) -> Result<Vec<ConditionToken>, String> {
+    group: bool,
+    last_is_logical: bool,
+    last_logical: LogicalOperator,
+) -> Result<Vec<ConditionToken>, String> {
     let mut conditions = vec![];
 
     for pair in pairs {
@@ -170,7 +176,14 @@ fn parse_logical_operator(
         conditions_logical.push(condition);
     }
 
-    if group {
+    if !last_is_logical {
+        Ok(vec![
+            ConditionToken::LogicalOperator(last_logical.clone()),
+            ConditionToken::ConditionGroup(ConditionGroup {
+                conditions: conditions_logical,
+            }),
+        ])
+    } else if group {
         Ok(vec![ConditionToken::ConditionGroup(ConditionGroup {
             conditions: conditions_logical,
         })])
@@ -221,21 +234,19 @@ fn parse_condition(key: String, pair: pest::iterators::Pair<Rule>) -> Result<Con
                 right: right.to_value(),
             })
         }
-        Rule::string | Rule::number | Rule::boolean | Rule::null | Rule::array => {
-            Ok(Condition {
-                operator: Operator::Equal,
-                left: key.to_value(),
-                right: parse_value(pair)?,
-            })
-        }
+        Rule::string | Rule::number | Rule::boolean | Rule::null | Rule::array => Ok(Condition {
+            operator: Operator::Equal,
+            left: key.to_value(),
+            right: parse_value(pair)?,
+        }),
         rule => return Err(format!("Unexpected rule parse_condition: {:?}", rule)),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::valu3::types::object::Object;
     use super::*;
+    use crate::valu3::types::object::Object;
 
     #[test]
     fn test_parse_json_to_clause_and() {
@@ -429,7 +440,6 @@ mod tests {
         assert_eq!(clause, expected_clause);
     }
 
-
     #[test]
     fn test_parse_json_to_clause_default_equal() {
         let json = r#"{
@@ -558,7 +568,8 @@ mod tests {
                                             right: Some(vec![
                                                 Object::from(vec![("name", "John")]),
                                                 Object::from(vec![("name", "Doe")]),
-                                            ]).to_value(),
+                                            ])
+                                                .to_value(),
                                         }),
                                     ],
                                 }),
