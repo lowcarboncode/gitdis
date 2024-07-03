@@ -3,8 +3,7 @@ use super::{Clause, Condition, ConditionGroup, ConditionToken, LogicalOperator, 
 use pest::Parser;
 use pest_derive::Parser;
 use std::collections::HashMap;
-use valu3::prelude::Value;
-use valu3::traits::ToValueBehavior;
+use valu3::prelude::*;
 
 #[derive(Parser)]
 #[grammar = "condition/parser/json.pest"]
@@ -40,7 +39,7 @@ fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Ve
     for pair in pairs {
         match pair.as_rule() {
             Rule::pair => {
-                let mut inner = pair.into_inner();
+                let mut inner = pair.clone().into_inner();
                 let key = inner.next().unwrap().as_str().trim_matches('"').to_string();
                 let value = inner.next().unwrap();
 
@@ -66,47 +65,56 @@ fn parse_object(pairs: pest::iterators::Pairs<Rule>, initial: bool) -> Result<Ve
     Ok(conditions)
 }
 
-fn parse_array_value(pairs: pest::iterators::Pairs<Rule>) -> Result<Value, String> {
-    let mut values = vec![];
+fn parse_value(pair: pest::iterators::Pair<Rule>) -> Result<Value, String> {
+    match pair.as_rule() {
+        Rule::string => {
+            let value = pair.as_str().trim_matches('"').to_string();
+            Ok(value.to_value())
+        }
+        Rule::number => {
+            let value = match Number::try_from(pair.as_str()) {
+                Ok(value) => value,
+                Err(e) => return Err(format!("Error parsing number: {:?}", e),),
+            };
 
-    for pair in pairs {
-        match pair.as_rule() {
-            Rule::string | Rule::number | Rule::boolean | Rule::null => {
-                values.push(pair.as_str().trim_matches('"').to_string().to_value());
-            }
-            Rule::object => {
-                let value = parse_object_value(pair.into_inner())?;
+            Ok(Value::Number(value))
+        }
+        Rule::boolean => {
+            let value = pair.as_str().parse::<bool>().unwrap();
+            Ok(value.to_value())
+        }
+        Rule::null => Ok(Value::Null),
+        Rule::array => {
+            let mut values = vec![];
+
+            for pair in pair.into_inner() {
+                let value = parse_value(pair)?;
                 values.push(value);
             }
-            Rule::array => {
-                let value = parse_array_value(pair.into_inner())?;
-                values.push(value);
-            }
-            rule => return Err(format!("Unexpected rule parse_array_value: {:?}", rule)),
+
+            Ok(values.to_value())
         }
-    }
+        Rule::object => {
+            let mut map = HashMap::new();
 
-    Ok(values.to_value())
-}
+            for pair in pair.into_inner() {
+                match pair.as_rule() {
+                    Rule::pair => {
+                        let mut inner = pair.into_inner();
+                        let key = inner.next().unwrap().as_str().trim_matches('"').to_string();
+                        let re = inner.next().unwrap();
+                        let value = parse_value(re).unwrap();
 
-fn parse_object_value(pairs: pest::iterators::Pairs<Rule>) -> Result<Value, String> {
-    let mut map = HashMap::new();
-
-    for pair in pairs {
-        match pair.as_rule() {
-            Rule::pair => {
-                let mut inner = pair.into_inner();
-                let key = inner.next().unwrap().as_str().trim_matches('"').to_string();
-                let value = inner.next().unwrap().into_inner().as_str().to_value();
-                println!("{:?}", inner);
-
-                map.insert(key, value);
+                        map.insert(key, value);
+                    }
+                    rule => return Err(format!("Unexpected rule parse_object_value: {:?}", rule)),
+                }
             }
-            rule => return Err(format!("Unexpected rule parse_object_value: {:?}", rule)),
-        }
-    }
 
-    Ok(map.to_value())
+            Ok(map.to_value())
+        }
+        rule => Err(format!("Unexpected rule parse_value: {:?}", rule)),
+    }
 }
 
 fn parse_logical_operator(pairs: pest::iterators::Pairs<Rule>, logical_operator: LogicalOperator, initial: bool) -> Result<Vec<ConditionToken>, String> {
@@ -142,7 +150,7 @@ fn parse_logical_operator(pairs: pest::iterators::Pairs<Rule>, logical_operator:
 fn parse_condition(key: String, pair: pest::iterators::Pair<Rule>) -> Result<Condition, String> {
     match pair.as_rule() {
         Rule::object => {
-            let mut inner = pair.into_inner();
+            let mut inner = pair.clone().into_inner();
             let mut operator_pair = inner.next().unwrap().into_inner();
             let operator_key = operator_pair.next().unwrap().into_inner().as_str();
 
@@ -162,7 +170,9 @@ fn parse_condition(key: String, pair: pest::iterators::Pair<Rule>) -> Result<Con
                 "$between" => Operator::Between,
                 "$notBetween" => Operator::NotBetween,
                 _ => {
-                    let value = parse_object_value(inner)?;
+                    println!("Unexpected operator: {:?}", pair);
+                    let value = parse_value(pair.clone())?;
+                    println!("Value: {:?}", value);
                     return Ok(Condition {
                         operator: Operator::Equal,
                         left: key.to_value(),
@@ -170,6 +180,7 @@ fn parse_condition(key: String, pair: pest::iterators::Pair<Rule>) -> Result<Con
                     });
                 }
             };
+
             let right = operator_pair
                 .next()
                 .map(|p| p.as_str().trim_matches('"').to_string());
@@ -180,19 +191,11 @@ fn parse_condition(key: String, pair: pest::iterators::Pair<Rule>) -> Result<Con
                 right: right.to_value(),
             })
         }
-        Rule::string | Rule::number | Rule::boolean | Rule::null => {
+        Rule::string | Rule::number | Rule::boolean | Rule::null | Rule::array => {
             Ok(Condition {
                 operator: Operator::Equal,
                 left: key.to_value(),
-                right: pair.as_str().trim_matches('"').to_value(),
-            })
-        }
-        Rule::array => {
-            let values = parse_array_value(pair.into_inner())?;
-            Ok(Condition {
-                operator: Operator::Equal,
-                left: key.to_value(),
-                right: values.to_value(),
+                right: parse_value(pair)?,
             })
         }
         rule => return Err(format!("Unexpected rule parse_condition: {:?}", rule)),

@@ -313,7 +313,6 @@ impl Clause {
                     Ok(false)
                 }
             }
-            _ => Ok(false),
         }
     }
 

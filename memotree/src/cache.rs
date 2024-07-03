@@ -181,6 +181,7 @@ pub struct ListProps {
 }
 
 impl ListProps {
+    #[allow(dead_code)]
     fn new() -> Self {
         Self {
             start_after_key: StartAfter::None,
@@ -465,7 +466,7 @@ mod test {
         let mut cache = Cache::new(2);
         cache.insert_str("key1", 1);
         cache.insert_str("key2", 2);
-        cache.remove("key1");
+        cache.remove("key1").expect("Error removing key");
         assert_eq!(cache.get("key1"), None);
         cache.insert_str("key3", 3);
         assert_eq!(cache.get("key3"), Some(&3));
