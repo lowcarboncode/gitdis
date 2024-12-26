@@ -140,12 +140,12 @@ mod test {
         cache.insert_str("postgraduate", 7);
         cache.insert_str("preconceive", 4);
 
-        let result_res = cache.list(ListProps {
-            order: Order::Desc,
-            filter: Filter::StartWith("post"),
-            start_after_key: StartAfter::Key("postmodern"),
-            limit: 10,
-        });
+        let list_props = ListProps::default()
+            .order(Order::Desc)
+            .filter(Filter::StartWith("post"))
+            .start_after_key("postmodern");
+
+        let result_res = cache.list(list_props);
 
         assert_eq!(result_res.is_ok(), true);
 
@@ -216,5 +216,30 @@ mod test {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], ("precaution".to_string(), &3));
         assert_eq!(result[1], ("precognition".to_string(), &5));
+    }
+
+    #[test]
+    fn test_filter_start_and_end_with() {
+        let mut cache = Quickleaf::new(10);
+
+        cache.insert_str("applemorepie", 1);
+        cache.insert_str("banana", 2);
+        cache.insert_str("pineapplepie", 3);
+
+        let list_props = ListProps::default()
+            .filter(Filter::StartAndEndWith("apple", "pie"))
+            .order(Order::Asc);
+
+        let result_res = cache.list(list_props);
+
+        assert_eq!(result_res.is_ok(), true);
+
+        let result = match result_res {
+            Ok(result) => result,
+            Err(_) => panic!("Error"),
+        };
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], ("applemorepie".to_string(), &1));
     }
 }
