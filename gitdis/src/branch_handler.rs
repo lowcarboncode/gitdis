@@ -1,12 +1,7 @@
+use crate::cache::ArcCache;
 use log::debug;
 use quickleaf::valu3::prelude::*;
-use std::{
-    collections::HashMap,
-    process::Command,
-    sync::{Arc, RwLock},
-};
-
-use quickleaf::Quickleaf;
+use std::{collections::HashMap, process::Command};
 
 const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
@@ -58,13 +53,11 @@ impl std::fmt::Display for Status {
     }
 }
 
-pub type ArcBranch = Arc<RwLock<Quickleaf>>;
-
 pub struct BranchHandler {
     clone_path: String,
     url: String,
     branch_name: String,
-    branch: ArcBranch,
+    branch: ArcCache,
     ignore: Vec<String>,
     repo_path: String,
     current_commit_hash: String,
@@ -76,7 +69,7 @@ impl BranchHandler {
         data_path: String,
         url: String,
         branch_name: String,
-        branch: ArcBranch,
+        branch: ArcCache,
         pull_request_interval_millis: u64,
     ) -> Self {
         let repo_name = url.split("/").last().unwrap().replace(".git", "");

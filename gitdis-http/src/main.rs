@@ -1,8 +1,6 @@
 mod http;
 mod routers;
 
-#[cfg(debug_assertions)]
-use dotenv::dotenv;
 use gitdis::prelude::*;
 use http::HttpServer;
 use log::debug;
@@ -10,9 +8,6 @@ use std::sync::{Arc, RwLock};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    #[cfg(debug_assertions)]
-    dotenv().ok();
-
     debug!("Starting gitdis");
 
     env_logger::init();

@@ -3,9 +3,10 @@ use std::{
     sync::{mpsc::SendError, Arc, RwLock},
 };
 
-use branch_handler::{ArcBranch, BranchHandler};
+use branch_handler::BranchHandler;
 use log::debug;
-use quickleaf::Quickleaf;
+
+use crate::cache::{ArcCache, CacheRepo};
 
 use super::branch_handler;
 
@@ -48,7 +49,7 @@ pub struct GitdisSettings {
 
 #[derive(Clone)]
 pub struct ObjectBranch {
-    data: ArcBranch,
+    data: ArcCache,
     create_at: u128,
 }
 
@@ -62,12 +63,12 @@ impl ObjectBranch {
         debug!("Creating new branch with {} items", total_branch_items);
 
         ObjectBranch {
-            data: Arc::new(RwLock::new(Quickleaf::new(total_branch_items))),
+            data: Arc::new(RwLock::new(CacheRepo::new(total_branch_items))),
             create_at,
         }
     }
 
-    pub fn get_data(&self) -> ArcBranch {
+    pub fn get_data(&self) -> ArcCache {
         self.data.clone()
     }
 
@@ -93,7 +94,7 @@ impl Gitdis {
         }
     }
 
-    pub fn get_branch(&self, repo_key: &str) -> Option<ArcBranch> {
+    pub fn get_branch(&self, repo_key: &str) -> Option<ArcCache> {
         debug!("Getting branch: {}", repo_key);
         debug!("Branches: {:?}", self.branches.keys());
 
@@ -156,5 +157,22 @@ impl From<GitdisSettings> for Gitdis {
             settings,
             branches: HashMap::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_branch_settings_get_repo_key() {
+        let settings = BranchSettings {
+            url: "https://github.com/user/repo.git".to_string(),
+            branch_name: "main".to_string(),
+            pull_request_interval_millis: 1000,
+        };
+
+        let repo_key = settings.get_repo_key();
+        assert_eq!(repo_key, "user/repo/main");
     }
 }
