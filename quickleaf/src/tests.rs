@@ -66,6 +66,39 @@ mod test {
     }
 
     #[test]
+    fn test_cache_list_asc_with_filter() {
+        let mut cache = Quickleaf::new(10);
+        cache.insert_str("postmodern", 8);
+        cache.insert_str("postpone", 6);
+        cache.insert_str("precept", 2);
+        cache.insert_str("postmortem", 9);
+        cache.insert_str("precaution", 3);
+        cache.insert_str("precede", 1);
+        cache.insert_str("precognition", 5);
+        cache.insert_str("postmark", 10);
+        cache.insert_str("postgraduate", 7);
+        cache.insert_str("preconceive", 4);
+
+        let result_res = cache.list(ListProps {
+            order: Order::Asc,
+            filter: Filter::StartWith("post"),
+            start_after_key: StartAfter::Key("postmodern"),
+            limit: 10,
+        });
+
+        assert_eq!(result_res.is_ok(), true);
+
+        let result = match result_res {
+            Ok(result) => result,
+            Err(_) => panic!("Error"),
+        };
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], ("postmortem".to_string(), &9));
+        assert_eq!(result[1], ("postpone".to_string(), &6));
+    }
+
+    #[test]
     fn test_cache_list_desc() {
         let mut cache = Quickleaf::new(5);
         cache.insert_str("key5", 5);
