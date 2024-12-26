@@ -1,6 +1,6 @@
 use super::gitdis::{BranchSettings, Gitdis, GitdisError};
 use log::debug;
-use memotree::valu3::prelude::*;
+use quickleaf::valu3::prelude::*;
 use std::sync::{mpsc::Sender, Arc, RwLock};
 
 pub type ArcGitdisService = Arc<RwLock<GitdisService>>;

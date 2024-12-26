@@ -1,3 +1,3 @@
 [workspace]
-members = ["gitdis", "gitdis-http", "memotree"]
+members = ["gitdis", "gitdis-http", "quickleaf"]
 resolver = "2"

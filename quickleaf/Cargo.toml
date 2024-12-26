@@ -1,13 +1,13 @@
 [package]
-name = "memotree"
+name = "quickleaf"
 version = "0.0.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-valu3 = "0.5.2"
-regex = "1.10.2"
+valu3 = "0.6.4"
+regex = "1.11.1"
 byte = "0.2.7"
-pest="2.7.11"
-pest_derive="2.7.11"
+pest = "2.7.15"
+pest_derive = "2.7.15"

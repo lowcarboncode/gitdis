@@ -1,12 +1,12 @@
 use log::debug;
-use memotree::valu3::prelude::*;
+use quickleaf::valu3::prelude::*;
 use std::{
     collections::HashMap,
     process::Command,
     sync::{Arc, RwLock},
 };
 
-use memotree::branch::Branch;
+use quickleaf::branch::Branch;
 
 const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
