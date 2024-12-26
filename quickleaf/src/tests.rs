@@ -45,7 +45,12 @@ mod test {
         cache.insert_str("key4", 4);
         cache.insert_str("key3", 3);
 
-        let result_res = cache.list(StartAfter::Key("key2"));
+        let result_res = cache.list(ListProps {
+            order: Order::Asc,
+            filter: Filter::None,
+            start_after_key: StartAfter::Key("key2"),
+            limit: 10,
+        });
 
         assert_eq!(result_res.is_ok(), true);
 
@@ -90,7 +95,7 @@ mod test {
 
     #[test]
     fn test_cache_list_desc_with_filter() {
-        let mut cache = Quickleaf::new(5);
+        let mut cache = Quickleaf::new(10);
         cache.insert_str("postmodern", 8);
         cache.insert_str("postpone", 6);
         cache.insert_str("precept", 2);
@@ -116,10 +121,9 @@ mod test {
             Err(_) => panic!("Error"),
         };
 
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], ("postmortem".to_string(), &9));
-        assert_eq!(result[1], ("postmark".to_string(), &10));
-        assert_eq!(result[2], ("postmodern".to_string(), &8));
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], ("postmark".to_string(), &10));
+        assert_eq!(result[1], ("postgraduate".to_string(), &7));
     }
 
     #[test]

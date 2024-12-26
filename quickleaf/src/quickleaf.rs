@@ -47,7 +47,7 @@ where
             self.map.remove(&first_key);
         }
 
-        // sorted insert
+        // sorted by key
         let position = self
             .list
             .iter()
@@ -116,23 +116,23 @@ where
     {
         let props = props.into();
 
-        let position = match props.start_after_key {
-            StartAfter::Key(key) => {
-                self.list
-                    .iter()
-                    .position(|k| k == &key)
-                    .ok_or(Error::SortKeyNotFound)?
-                    + 1
-            }
-            StartAfter::None => 0,
-        };
-
         let mut list = Vec::new();
         let mut count = 0;
 
         match props.order {
             Order::Asc => {
-                let skip_iter = self.list.iter().skip(position);
+                let start_key_index = match props.start_after_key {
+                    StartAfter::Key(key) => {
+                        self.list
+                            .iter()
+                            .position(|k| k == &key)
+                            .ok_or(Error::SortKeyNotFound)?
+                            + 1
+                    }
+                    StartAfter::None => 0,
+                };
+
+                let skip_iter = self.list.iter().skip(start_key_index);
                 for k in skip_iter {
                     let filtered = match props.filter {
                         Filter::StartWith(key) => {
@@ -169,7 +169,19 @@ where
                 }
             }
             Order::Desc => {
-                let skip_iter = self.list.iter().rev().skip(position);
+                let start_key_index = match props.start_after_key {
+                    StartAfter::Key(key) => {
+                        self.list
+                            .iter()
+                            .rev()
+                            .position(|k| k == &key)
+                            .ok_or(Error::SortKeyNotFound)?
+                            + 1
+                    }
+                    StartAfter::None => 0,
+                };
+
+                let skip_iter = self.list.iter().rev().skip(start_key_index);
                 for k in skip_iter {
                     let filtered = match props.filter {
                         Filter::StartWith(key) => {
