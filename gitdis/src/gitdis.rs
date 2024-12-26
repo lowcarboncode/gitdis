@@ -5,7 +5,7 @@ use std::{
 
 use branch_handler::{ArcBranch, BranchHandler};
 use log::debug;
-use quickleaf::branch::Branch;
+use quickleaf::Quickleaf;
 
 use super::branch_handler;
 
@@ -62,7 +62,7 @@ impl ObjectBranch {
         debug!("Creating new branch with {} items", total_branch_items);
 
         ObjectBranch {
-            data: Arc::new(RwLock::new(Branch::new(total_branch_items))),
+            data: Arc::new(RwLock::new(Quickleaf::new(total_branch_items))),
             create_at,
         }
     }

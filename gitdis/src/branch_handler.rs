@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use quickleaf::branch::Branch;
+use quickleaf::Quickleaf;
 
 const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
@@ -58,7 +58,7 @@ impl std::fmt::Display for Status {
     }
 }
 
-pub type ArcBranch = Arc<RwLock<Branch>>;
+pub type ArcBranch = Arc<RwLock<Quickleaf>>;
 
 pub struct BranchHandler {
     clone_path: String,
@@ -234,7 +234,11 @@ impl BranchHandler {
     }
 
     fn fix_key(&self, key: &str) -> String {
-        key.replace(&format!("{}/", &self.repo_path), "").split(".").next().unwrap().to_string()
+        key.replace(&format!("{}/", &self.repo_path), "")
+            .split(".")
+            .next()
+            .unwrap()
+            .to_string()
     }
 
     fn get_initial_data(&self) -> Result<HashMap<String, Value>, BranchHandlerError> {

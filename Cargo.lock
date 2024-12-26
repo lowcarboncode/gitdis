@@ -208,12 +208,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
-name = "byte"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21c7ab3e4ae80853c7f8dcdcd904dfa25c02cc373534b8d165194325a088a7cc"
-
-[[package]]
 name = "bytes"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -735,12 +729,10 @@ dependencies = [
 
 [[package]]
 name = "quickleaf"
-version = "0.0.1"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e0207a4411fa8172714041e29490c5a61086cec690342c6d4f1edbc8b4e3569"
 dependencies = [
- "byte",
- "pest",
- "pest_derive",
- "regex",
  "valu3",
 ]
 
@@ -1060,9 +1052,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "valu3"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad6ed1e7aa02d0780605f4f5165f434b3979a2f60febc1bae0e362864cdd17e4"
+checksum = "c0d72af4716d494f56ff0a116cdb92c71013596c988e96b56e5f674fe0f48ef8"
 dependencies = [
  "bincode",
  "chrono",
@@ -1075,9 +1067,9 @@ dependencies = [
 
 [[package]]
 name = "valu3-derive"
-version = "0.6.4"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b644a8193c849765f3bdd16151c38e3934dce8a6e3146675353de0b94e2f2556"
+checksum = "1a88e5754307aa98a80ed976666c49c9efcdd985ca50d0a3a2045b4d3e5e0f95"
 dependencies = [
  "proc-macro2",
  "quote",

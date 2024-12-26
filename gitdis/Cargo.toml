@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.38.0", features = ["full"] }
-quickleaf = { path = "../quickleaf" }
+quickleaf = "0.1.2"
 log = "0.4.22"
