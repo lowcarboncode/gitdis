@@ -116,108 +116,63 @@ where
     {
         let props = props.into();
 
+        match props.order {
+            Order::Asc => self.resolve_order(self.list.iter(), props),
+            Order::Desc => self.resolve_order(self.list.iter().rev(), props),
+        }
+    }
+
+    fn resolve_order<'a, I>(
+        &self,
+        mut list_iter: I,
+        props: ListProps,
+    ) -> Result<Vec<(Key, &V)>, Error>
+    where
+        I: Iterator<Item = &'a Key>,
+    {
+        if let StartAfter::Key(key) = props.start_after_key {
+            list_iter
+                .find(|k| k == &key)
+                .ok_or(Error::SortKeyNotFound)?;
+        }
+
         let mut list = Vec::new();
         let mut count = 0;
 
-        match props.order {
-            Order::Asc => {
-                let start_key_index = match props.start_after_key {
-                    StartAfter::Key(key) => {
-                        self.list
-                            .iter()
-                            .position(|k| k == &key)
-                            .ok_or(Error::SortKeyNotFound)?
-                            + 1
-                    }
-                    StartAfter::None => 0,
-                };
-
-                let skip_iter = self.list.iter().skip(start_key_index);
-                for k in skip_iter {
-                    let filtered = match props.filter {
-                        Filter::StartWith(key) => {
-                            if k.starts_with(&key) {
-                                Some((k.clone(), self.map.get(k).unwrap()))
-                            } else {
-                                None
-                            }
-                        }
-                        Filter::EndWith(key) => {
-                            if k.ends_with(&key) {
-                                Some((k.clone(), self.map.get(k).unwrap()))
-                            } else {
-                                None
-                            }
-                        }
-                        Filter::StartAndEndWith(start_key, end_key) => {
-                            if k.starts_with(&start_key) && k.ends_with(&end_key) {
-                                Some((k.clone(), self.map.get(k).unwrap()))
-                            } else {
-                                None
-                            }
-                        }
-                        Filter::None => Some((k.clone(), self.map.get(k).unwrap())),
-                    };
-
-                    if let Some(item) = filtered {
-                        list.push(item);
-                        count += 1;
-                        if count == props.limit {
-                            break;
-                        }
+        for k in list_iter {
+            let filtered = match props.filter {
+                Filter::StartWith(key) => {
+                    if k.starts_with(&key) {
+                        Some((k.clone(), self.map.get(k).unwrap()))
+                    } else {
+                        None
                     }
                 }
-            }
-            Order::Desc => {
-                let start_key_index = match props.start_after_key {
-                    StartAfter::Key(key) => {
-                        self.list
-                            .iter()
-                            .rev()
-                            .position(|k| k == &key)
-                            .ok_or(Error::SortKeyNotFound)?
-                            + 1
-                    }
-                    StartAfter::None => 0,
-                };
-
-                let skip_iter = self.list.iter().rev().skip(start_key_index);
-                for k in skip_iter {
-                    let filtered = match props.filter {
-                        Filter::StartWith(key) => {
-                            if k.starts_with(&key) {
-                                Some((k.clone(), self.map.get(k).unwrap()))
-                            } else {
-                                None
-                            }
-                        }
-                        Filter::EndWith(key) => {
-                            if k.ends_with(&key) {
-                                Some((k.clone(), self.map.get(k).unwrap()))
-                            } else {
-                                None
-                            }
-                        }
-                        Filter::StartAndEndWith(start_key, end_key) => {
-                            if k.starts_with(&start_key) && k.ends_with(&end_key) {
-                                Some((k.clone(), self.map.get(k).unwrap()))
-                            } else {
-                                None
-                            }
-                        }
-                        Filter::None => Some((k.clone(), self.map.get(k).unwrap())),
-                    };
-
-                    if let Some(item) = filtered {
-                        list.push(item);
-                        count += 1;
-                        if count == props.limit {
-                            break;
-                        }
+                Filter::EndWith(key) => {
+                    if k.ends_with(&key) {
+                        Some((k.clone(), self.map.get(k).unwrap()))
+                    } else {
+                        None
                     }
                 }
+                Filter::StartAndEndWith(start_key, end_key) => {
+                    if k.starts_with(&start_key) && k.ends_with(&end_key) {
+                        Some((k.clone(), self.map.get(k).unwrap()))
+                    } else {
+                        None
+                    }
+                }
+                Filter::None => Some((k.clone(), self.map.get(k).unwrap())),
+            };
+
+            if let Some(item) = filtered {
+                list.push(item);
+                count += 1;
+                if count == props.limit {
+                    break;
+                }
             }
-        };
+        }
 
         Ok(list)
     }
