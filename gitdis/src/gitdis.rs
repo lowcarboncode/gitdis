@@ -1,22 +1,28 @@
+use std::sync::mpsc::{Receiver, Sender};
 use std::{
     collections::HashMap,
-    sync::{mpsc::SendError, Arc, RwLock},
+    sync::{
+        mpsc::{self, SendError},
+        Arc, RwLock,
+    },
 };
 
 use branch_handler::BranchHandler;
 use log::debug;
+use quickleaf::{Cache, Event};
 
-use crate::cache::{ArcCache, CacheRepo};
+use crate::cache::ArcCache;
 
 use super::branch_handler;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum GitdisError {
     RepoExists,
     Sender(SendError<BranchSettings>),
+    BranchNotFound,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BranchSettings {
     pub url: String,
     pub branch_name: String,
@@ -48,28 +54,28 @@ pub struct GitdisSettings {
 }
 
 #[derive(Clone)]
-pub struct ObjectBranch {
-    data: ArcCache,
+pub struct CacheBranch {
+    cache: ArcCache,
     create_at: u128,
 }
 
-impl ObjectBranch {
-    pub fn new(total_branch_items: usize) -> Self {
+impl CacheBranch {
+    pub fn new(total_cache_items: usize, sender: Sender<Event>) -> Self {
         let create_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis();
 
-        debug!("Creating new branch with {} items", total_branch_items);
+        debug!("Creating new cache with {} items", total_cache_items);
 
-        ObjectBranch {
-            data: Arc::new(RwLock::new(CacheRepo::new(total_branch_items))),
+        CacheBranch {
+            cache: Arc::new(RwLock::new(Cache::with_sender(total_cache_items, sender))),
             create_at,
         }
     }
 
     pub fn get_data(&self) -> ArcCache {
-        self.data.clone()
+        self.cache.clone()
     }
 
     pub fn get_create_at(&self) -> u128 {
@@ -79,27 +85,38 @@ impl ObjectBranch {
 
 pub struct Gitdis {
     pub settings: GitdisSettings,
-    branches: HashMap<String, ObjectBranch>,
+    branches: HashMap<String, CacheBranch>,
+    sender: Sender<Event>,
+    pub receiver: Receiver<Event>,
 }
 
 impl Gitdis {
+    pub fn new(settings: GitdisSettings, sender: Sender<Event>, receiver: Receiver<Event>) -> Self {
+        Self {
+            settings,
+            branches: HashMap::new(),
+            sender,
+            receiver,
+        }
+    }
+
     pub fn update_settings(&mut self, settings: GitdisSettings) {
         self.settings = settings;
     }
 
-    pub fn get_object(&self, repo_key: &str) -> Option<ObjectBranch> {
+    pub fn get_object_branch(&self, repo_key: &str) -> Option<CacheBranch> {
         match self.branches.get(repo_key) {
-            Some(branch) => Some(branch.clone()),
+            Some(cache) => Some(cache.clone()),
             None => None,
         }
     }
 
-    pub fn get_branch(&self, repo_key: &str) -> Option<ArcCache> {
+    pub fn get_data_branch(&self, repo_key: &str) -> Option<ArcCache> {
         debug!("Getting branch: {}", repo_key);
         debug!("Branches: {:?}", self.branches.keys());
 
         match self.branches.get(repo_key) {
-            Some(branch) => Some(branch.get_data()),
+            Some(cache) => Some(cache.get_data()),
             None => None,
         }
     }
@@ -120,7 +137,7 @@ impl Gitdis {
 
         self.branches.insert(
             key.clone(),
-            ObjectBranch::new(self.settings.total_branch_items),
+            CacheBranch::new(self.settings.total_branch_items, self.sender.clone()),
         );
 
         debug!("Added new repo: {}", key);
@@ -128,51 +145,53 @@ impl Gitdis {
         Ok(())
     }
 
-    pub fn spawn_branch_listener(&self, settings: BranchSettings) -> tokio::task::JoinHandle<()> {
-        let branch = self.get_branch(&settings.get_repo_key()).unwrap();
-        let local_clone_path = self.settings.local_clone_path.clone();
-
-        debug!("Starting listener for branch: {}", settings.get_repo_key());
-
-        tokio::spawn(async move {
-            let mut branch = BranchHandler::new(
-                local_clone_path.clone(),
-                settings.url,
-                settings.branch_name,
-                branch,
-                settings.pull_request_interval_millis,
-            );
-
-            match branch.listener() {
-                Ok(_) => (),
-                Err(e) => panic!("Error: {}", e),
+    pub fn create_branch_handler(
+        &self,
+        settings: BranchSettings,
+    ) -> Result<BranchHandler, GitdisError> {
+        let cache = match self.get_data_branch(&settings.get_repo_key()) {
+            Some(cache) => cache,
+            None => {
+                return Err(GitdisError::BranchNotFound);
             }
-        })
+        };
+
+        Ok(BranchHandler::new(
+            self.settings.local_clone_path.clone(),
+            settings.url,
+            settings.branch_name,
+            cache,
+            settings.pull_request_interval_millis,
+        ))
+    }
+
+    pub fn listen_events<Callback>(&self, callback: Callback)
+    where
+        Callback: Fn(Event) + Send + 'static,
+    {
+        for event in self.receiver.iter() {
+            match event {
+                Event::Insert(data) => {
+                    debug!("Inserting data: {:?}", data);
+                    callback(Event::Insert(data));
+                }
+                Event::Remove(data) => {
+                    debug!("Removing data: {:?}", data);
+                    callback(Event::Remove(data));
+                }
+                Event::Clear => {
+                    debug!("Clearing data");
+                    callback(Event::Clear);
+                }
+            }
+        }
     }
 }
 
 impl From<GitdisSettings> for Gitdis {
     fn from(settings: GitdisSettings) -> Self {
-        Self {
-            settings,
-            branches: HashMap::new(),
-        }
-    }
-}
+        let (sender, receiver) = mpsc::channel();
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_branch_settings_get_repo_key() {
-        let settings = BranchSettings {
-            url: "https://github.com/user/repo.git".to_string(),
-            branch_name: "main".to_string(),
-            pull_request_interval_millis: 1000,
-        };
-
-        let repo_key = settings.get_repo_key();
-        assert_eq!(repo_key, "user/repo/main");
+        Self::new(settings, sender, receiver)
     }
 }

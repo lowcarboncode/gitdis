@@ -7,6 +7,7 @@ const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
 const EXT_YAML: &str = ".yaml";
 
+#[derive(Debug, PartialEq)]
 pub enum BranchHandlerError {
     GitError((Option<i32>, String)),
 }
@@ -57,7 +58,7 @@ pub struct BranchHandler {
     clone_path: String,
     url: String,
     branch_name: String,
-    branch: ArcCache,
+    cache: ArcCache,
     ignore: Vec<String>,
     repo_path: String,
     current_commit_hash: String,
@@ -69,7 +70,7 @@ impl BranchHandler {
         data_path: String,
         url: String,
         branch_name: String,
-        branch: ArcCache,
+        cache: ArcCache,
         pull_request_interval_millis: u64,
     ) -> Self {
         let repo_name = url.split("/").last().unwrap().replace(".git", "");
@@ -79,7 +80,7 @@ impl BranchHandler {
             clone_path: data_path,
             url,
             branch_name,
-            branch,
+            cache,
             ignore: vec!["/.git/".to_string()],
             repo_path,
             current_commit_hash: "".to_string(),
@@ -93,12 +94,11 @@ impl BranchHandler {
             std::fs::create_dir(&self.clone_path).expect("Failed to create repo directory");
         }
 
-        self.clone()?;
+        self.git_clone()?;
         self.get_initial_data()
     }
 
-    /// Start the listener to listen for changes in the repository
-    pub fn listener(&mut self) -> Result<(), BranchHandlerError> {
+    pub fn listen(&mut self) -> Result<(), BranchHandlerError> {
         self.setup()?;
 
         loop {
@@ -114,9 +114,9 @@ impl BranchHandler {
             std::fs::create_dir(&self.clone_path).expect("Failed to create repo directory");
         }
 
-        self.clone()?;
+        self.git_clone()?;
         self.load_initial_data()?;
-        self.current_commit_hash = self.get_commit_hash()?;
+        self.current_commit_hash = self.git_get_commit_hash()?;
 
         debug!("Initial commit hash: {}", self.current_commit_hash);
 
@@ -124,9 +124,9 @@ impl BranchHandler {
     }
 
     fn update(&mut self) -> Result<(), BranchHandlerError> {
-        self.pull()?;
+        self.git_pull()?;
 
-        let current_commit_hash = self.get_commit_hash()?;
+        let current_commit_hash = self.git_get_commit_hash()?;
 
         debug!("Current commit hash: {}", current_commit_hash);
 
@@ -139,7 +139,7 @@ impl BranchHandler {
 
         self.current_commit_hash = current_commit_hash;
 
-        let output = self.diff_stat()?;
+        let output = self.git_diff_stat()?;
 
         debug!("Diff stat: {}", output);
 
@@ -184,14 +184,14 @@ impl BranchHandler {
                                 Err(_) => Value::Undefined,
                             };
 
-                            match self.branch.write() {
-                                Ok(mut branch) => branch.insert(self.fix_key(&file), value),
+                            match self.cache.write() {
+                                Ok(mut cache) => cache.insert(self.fix_key(&file), value),
                                 Err(_) => continue,
                             };
                         }
                         Status::Deleted => {
-                            match self.branch.write() {
-                                Ok(mut branch) => match branch.remove(&self.fix_key(&file)) {
+                            match self.cache.write() {
+                                Ok(mut cache) => match cache.remove(&self.fix_key(&file)) {
                                     Ok(_) => (),
                                     Err(_) => (),
                                 },
@@ -207,10 +207,10 @@ impl BranchHandler {
                                     Err(_) => Value::Undefined,
                                 };
 
-                                match self.branch.write() {
-                                    Ok(mut branch) => {
-                                        branch.insert(self.fix_key(&new_file), value);
-                                        branch.remove(&self.fix_key(&file)).unwrap();
+                                match self.cache.write() {
+                                    Ok(mut cache) => {
+                                        cache.insert(self.fix_key(&new_file), value);
+                                        cache.remove(&self.fix_key(&file)).unwrap();
                                     }
                                     Err(_) => continue,
                                 };
@@ -254,10 +254,10 @@ impl BranchHandler {
     fn load_initial_data(&mut self) -> Result<(), BranchHandlerError> {
         let data = self.get_initial_data()?;
 
-        match self.branch.write() {
-            Ok(mut branch) => {
+        match self.cache.write() {
+            Ok(mut cache) => {
                 for (key, value) in data {
-                    branch.insert(self.fix_key(&key), value);
+                    cache.insert(self.fix_key(&key), value);
                 }
             }
             Err(_) => (),
@@ -309,11 +309,11 @@ impl BranchHandler {
         files
     }
 
-    fn clone(&self) -> Result<(), BranchHandlerError> {
+    fn git_clone(&self) -> Result<(), BranchHandlerError> {
         debug!("Cloning repository");
 
         if std::path::Path::new(&self.repo_path).exists() {
-            return self.pull();
+            return self.git_pull();
         }
 
         let output = Command::new("git")
@@ -334,7 +334,7 @@ impl BranchHandler {
         Ok(())
     }
 
-    fn pull(&self) -> Result<(), BranchHandlerError> {
+    fn git_pull(&self) -> Result<(), BranchHandlerError> {
         debug!("Pulling changes");
 
         let output = Command::new("git")
@@ -352,7 +352,7 @@ impl BranchHandler {
         Ok(())
     }
 
-    fn diff_stat(&mut self) -> Result<String, BranchHandlerError> {
+    fn git_diff_stat(&mut self) -> Result<String, BranchHandlerError> {
         debug!("Getting diff stat");
 
         let output = Command::new("git")
@@ -376,7 +376,7 @@ impl BranchHandler {
         Ok(output)
     }
 
-    fn get_commit_hash(&mut self) -> Result<String, BranchHandlerError> {
+    fn git_get_commit_hash(&mut self) -> Result<String, BranchHandlerError> {
         let output = Command::new("git")
             .arg("rev-parse")
             .arg("HEAD")

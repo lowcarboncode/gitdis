@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.38.0", features = ["full"] }
-quickleaf = "0.1.2"
+quickleaf = "0.2.3"
 log = "0.4.22"

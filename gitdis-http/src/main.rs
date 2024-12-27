@@ -41,7 +41,7 @@ async fn main() -> std::io::Result<()> {
 
     for settings in receiver.iter() {
         let service = service.read().unwrap();
-        service.gitdis.spawn_branch_listener(settings.clone());
+        service.gitdis.create_branch_handler(settings.clone());
     }
 
     Ok(())

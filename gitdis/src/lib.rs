@@ -3,3 +3,5 @@ mod cache;
 pub mod gitdis;
 pub mod prelude;
 pub mod services;
+#[cfg(test)]
+mod tests;

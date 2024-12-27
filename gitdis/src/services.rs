@@ -36,7 +36,7 @@ impl GitdisService {
         match self.gitdis.add_repo(settings.clone()) {
             Ok(_) => {
                 let repo_key = settings.get_repo_key();
-                let object = self.gitdis.get_object(&repo_key);
+                let object = self.gitdis.get_object_branch(&repo_key);
 
                 match self.sender.send(settings) {
                     Ok(_) => match object {
@@ -54,6 +54,7 @@ impl GitdisService {
             Err(err) => match err {
                 GitdisError::RepoExists => Err(GitdisServiceError::RepoAlreadyExists),
                 GitdisError::Sender(err) => Err(GitdisServiceError::InternalError(err.to_string())),
+                GitdisError::BranchNotFound => Err(GitdisServiceError::BranchNotFound),
             },
         }
     }
@@ -65,7 +66,7 @@ impl GitdisService {
     ) -> Result<Option<Value>, GitdisServiceError> {
         debug!("Getting data from branch {} {}", branch_key, object_key);
 
-        match self.gitdis.get_branch(&branch_key) {
+        match self.gitdis.get_data_branch(&branch_key) {
             Some(branch) => {
                 let branch = branch.read().unwrap();
 
