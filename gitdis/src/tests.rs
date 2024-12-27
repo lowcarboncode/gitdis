@@ -72,8 +72,8 @@ async fn test_gitdis_spawn_branch_listener() {
     });
 
     for event in gitdis.receiver.iter() {
-        fs::remove_dir_all("data").unwrap();
         if let Event::Insert(data) = event {
+            fs::remove_dir_all("data").unwrap();
             println!("Data: {:?}", data);
             assert!(data.value.is_object());
             break;
