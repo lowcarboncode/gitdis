@@ -267,7 +267,6 @@ impl BranchHandler {
         for file in files {
             let content = self.get_file_content(&file);
             let value = Self::payload_to_value(&file, &content);
-            println!("file: {}, value: {:#?}", file, value);
             data.insert(self.fix_key(&file), value);
         }
 
