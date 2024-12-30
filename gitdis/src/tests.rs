@@ -46,15 +46,57 @@ async fn test_gitdis_spawn_branch_listener() {
 
     gitdis.add_repo(branch_settings.clone()).unwrap();
 
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
-
-    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
+    gitdis
+        .listen_branch(&branch_settings.repo_key, None)
+        .unwrap();
 
     for event in gitdis.receiver.iter() {
         if let Event::Insert(data) = event {
-            fs::remove_dir_all("data").unwrap();
+            // fs::remove_dir_all("data").unwrap();
             assert!(data.value.is_object());
             break;
         }
+    }
+}
+
+#[tokio::test]
+async fn test_gitdis_yml() {
+    let settings = GitdisSettings {
+        total_branch_items: 100,
+        local_clone_path: "data".to_string(),
+    };
+
+    let (sender, receiver) = mpsc::channel();
+
+    let mut gitdis = Gitdis::new(settings, sender, receiver);
+
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+
+    gitdis.add_repo(branch_settings.clone()).unwrap();
+
+    gitdis
+        .listen_branch(&branch_settings.repo_key, Some("application1/settings.yml"))
+        .unwrap();
+
+    let mut count = 0;
+    for event in gitdis.receiver.iter() {
+        if let Event::Insert(_) = event {
+            count += 1;
+            if count == 1 {
+                break;
+            }
+        }
+    }
+
+    match gitdis.get_branch_data(&branch_settings.repo_key) {
+        Some(branch) => {
+            let branch = branch.read().unwrap();
+            let data = branch.get("application1/settings").unwrap();
+
+            assert!(data.is_object());
+            assert_eq!(data.get("foo").unwrap().as_bool(), Some(&true));
+            assert_eq!(data.get("bar").unwrap().as_bool(), Some(&false));
+        }
+        None => panic!("Branch not found"),
     }
 }

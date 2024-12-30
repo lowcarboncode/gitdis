@@ -1,7 +1,7 @@
 use crate::cache::ArcCache;
 use log::debug;
 use quickleaf::valu3::prelude::*;
-use std::{collections::HashMap, process::Command};
+use std::{collections::HashMap, path, process::Command};
 
 const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
@@ -56,14 +56,24 @@ impl std::fmt::Display for Status {
 }
 
 pub struct BranchHandler {
+    /// The path where the repository will be cloned
     clone_path: String,
+    /// The repository URL
     url: String,
+    /// The branch name
     branch_name: String,
+    /// The cache to store the data
     cache: ArcCache,
+    /// The files to ignore
     ignore: Vec<String>,
+    /// The repository path
     repo_path: String,
+    /// The current commit hash
     current_commit_hash: String,
+    /// The interval to pull the changes
     pull_request_interval_millis: u64,
+    /// The target path
+    target_path: String,
 }
 
 impl BranchHandler {
@@ -73,9 +83,15 @@ impl BranchHandler {
         branch_name: String,
         cache: ArcCache,
         pull_request_interval_millis: u64,
+        target_path: Option<&str>,
     ) -> Self {
         let repo_name = url.split("/").last().unwrap().replace(".git", "");
         let repo_path = format!("{}/{}", data_path, repo_name);
+        let target_path = if let Some(target_path) = target_path {
+            format!("{}/{}", repo_path, target_path)
+        } else {
+            repo_path.clone()
+        };
 
         Self {
             clone_path: data_path,
@@ -86,6 +102,7 @@ impl BranchHandler {
             repo_path,
             current_commit_hash: "".to_string(),
             pull_request_interval_millis,
+            target_path,
         }
     }
 
@@ -247,7 +264,7 @@ impl BranchHandler {
     }
 
     fn get_initial_data(&self) -> Result<HashMap<String, Value>, BranchHandlerError> {
-        let files = self.list_all_files(&self.clone_path);
+        let files = self.list_all_files(&self.target_path);
         let mut data = HashMap::new();
 
         for file in files {
@@ -298,7 +315,11 @@ impl BranchHandler {
     }
 
     fn list_all_files(&self, path: &str) -> Vec<String> {
-        let mut files = Vec::new();
+        if !std::path::Path::new(path).is_dir() {
+            return vec![path.to_string()];
+        }
+
+        let mut files: Vec<String> = Vec::new();
 
         for entry in std::fs::read_dir(path).unwrap() {
             let entry = entry.unwrap();
