@@ -91,11 +91,7 @@ impl Gitdis {
         Ok(())
     }
 
-    pub fn listen_branch(
-        &self,
-        repo_key: &str,
-        pull_request_interval_millis: u64,
-    ) -> Result<thread::JoinHandle<()>, GitdisError> {
+    pub fn listen_branch(&self, repo_key: &str) -> Result<thread::JoinHandle<()>, GitdisError> {
         let branch: Branch = match self.get_branch(&repo_key) {
             Some(cache) => cache,
             None => {
@@ -108,7 +104,7 @@ impl Gitdis {
             branch.settings.url,
             branch.settings.branch_name,
             branch.cache.get_data(),
-            pull_request_interval_millis,
+            branch.settings.pull_request_interval_millis,
         );
 
         Ok(thread::spawn(move || {
