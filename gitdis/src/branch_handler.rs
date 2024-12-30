@@ -6,6 +6,7 @@ use std::{collections::HashMap, process::Command};
 const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
 const EXT_YAML: &str = ".yaml";
+const EXT_XML: &str = ".xml";
 
 #[derive(Debug, PartialEq)]
 pub enum BranchHandlerError {
@@ -88,6 +89,10 @@ impl BranchHandler {
         }
     }
 
+    pub fn concat_repo_path(&mut self, path: &str) {
+        self.repo_path = format!("{}/{}", self.repo_path, path)
+    }
+
     /// Get the data from the repository instantly
     pub fn clone_and_get_data(&self) -> Result<HashMap<String, Value>, BranchHandlerError> {
         if !std::path::Path::new(&self.clone_path).exists() {
@@ -121,6 +126,18 @@ impl BranchHandler {
         debug!("Initial commit hash: {}", self.current_commit_hash);
 
         Ok(())
+    }
+
+    fn payload_to_value(file: &str, content: &str) -> Value {
+        if file.ends_with(EXT_JSON) {
+            Value::json_to_value(&content).unwrap_or(Value::Undefined)
+        } else if file.ends_with(EXT_YML) || file.ends_with(EXT_YAML) {
+            serde_yaml::from_str(&content).unwrap_or(Value::Undefined)
+        } else if file.ends_with(EXT_XML) {
+            serde_xml_rs::from_str(&content).unwrap_or(Value::Undefined)
+        } else {
+            Value::Undefined
+        }
     }
 
     fn update(&mut self) -> Result<(), BranchHandlerError> {
@@ -179,10 +196,8 @@ impl BranchHandler {
                     match status {
                         Status::Added | Status::Modified | Status::Copied => {
                             let content = self.get_file_content(&file);
-                            let value = match Value::payload_to_value(&content) {
-                                Ok(value) => value,
-                                Err(_) => Value::Undefined,
-                            };
+
+                            let value = Self::payload_to_value(&file, &content);
 
                             match self.cache.write() {
                                 Ok(mut cache) => cache.insert(self.fix_key(&file), value),
@@ -202,10 +217,7 @@ impl BranchHandler {
                             Some(new_file) => {
                                 let new_file = format!("{}/{}", self.repo_path, new_file);
                                 let content = self.get_file_content(&new_file);
-                                let value = match Value::payload_to_value(&content) {
-                                    Ok(value) => value,
-                                    Err(_) => Value::Undefined,
-                                };
+                                let value = Self::payload_to_value(&new_file, &content);
 
                                 match self.cache.write() {
                                     Ok(mut cache) => {
@@ -240,10 +252,7 @@ impl BranchHandler {
 
         for file in files {
             let content = self.get_file_content(&file);
-            let value = match Value::payload_to_value(&content) {
-                Ok(value) => value,
-                Err(_) => Value::Undefined,
-            };
+            let value = Self::payload_to_value(&file, &content);
 
             data.insert(self.fix_key(&file), value);
         }
@@ -272,7 +281,10 @@ impl BranchHandler {
     }
 
     fn is_valid_file(&self, path: &str) -> bool {
-        path.ends_with(EXT_JSON) || path.ends_with(EXT_YML) || path.ends_with(EXT_YAML)
+        path.ends_with(EXT_JSON)
+            || path.ends_with(EXT_YML)
+            || path.ends_with(EXT_YAML)
+            || path.ends_with(EXT_XML)
     }
 
     fn is_ignore(&self, key: &str) -> bool {

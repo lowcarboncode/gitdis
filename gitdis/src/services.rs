@@ -1,4 +1,6 @@
-use super::gitdis::{BranchSettings, Gitdis, GitdisError};
+use crate::branch_settings::BranchSettings;
+
+use super::gitdis::{Gitdis, GitdisError};
 use log::debug;
 use quickleaf::valu3::prelude::*;
 use std::sync::{mpsc::Sender, Arc, RwLock};
@@ -35,14 +37,14 @@ impl GitdisService {
 
         match self.gitdis.add_repo(settings.clone()) {
             Ok(_) => {
-                let repo_key = settings.get_repo_key();
-                let object = self.gitdis.get_object_branch(&repo_key);
+                let repo_key = settings.repo_key.clone();
+                let branch = self.gitdis.get_branch(&repo_key);
 
                 match self.sender.send(settings) {
-                    Ok(_) => match object {
+                    Ok(_) => match branch {
                         Some(object) => Ok(ObjectBranchData {
                             key: repo_key,
-                            create_at: object.get_create_at(),
+                            create_at: object.cache.get_create_at(),
                         }),
                         None => Err(GitdisServiceError::InternalError(
                             "Failed to get object".to_string(),
@@ -66,7 +68,7 @@ impl GitdisService {
     ) -> Result<Option<Value>, GitdisServiceError> {
         debug!("Getting data from branch {} {}", branch_key, object_key);
 
-        match self.gitdis.get_data_branch(&branch_key) {
+        match self.gitdis.get_branch_data(&branch_key) {
             Some(branch) => {
                 let branch = branch.read().unwrap();
 

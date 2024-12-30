@@ -5,5 +5,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.38.0", features = ["full"] }
-quickleaf = "0.2.3"
+quickleaf = "0.2.4"
 log = "0.4.22"
+serde_yaml = "0.9.34"
+serde-xml-rs = "0.6.0"

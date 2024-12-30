@@ -1,6 +1,7 @@
-use std::{fs, sync::mpsc, thread};
+use std::{fs, sync::mpsc};
 
-use gitdis::{BranchSettings, Gitdis, GitdisSettings};
+use branch_settings::BranchSettings;
+use gitdis::{Gitdis, GitdisSettings};
 use quickleaf::Event;
 
 use super::*;
@@ -9,13 +10,9 @@ const TEST_URL: &str = "https://github.com/lowcarboncode/gitdis-example-reposito
 
 #[test]
 fn test_branch_settings_get_repo_key() {
-    let settings = BranchSettings {
-        url: TEST_URL.to_string(),
-        branch_name: "main".to_string(),
-        pull_request_interval_millis: 1000,
-    };
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string());
 
-    let repo_key = settings.get_repo_key();
+    let repo_key = branch_settings.repo_key;
     assert_eq!(repo_key, "lowcarboncode/gitdis-example-repository/main");
 }
 
@@ -28,13 +25,9 @@ fn test_gitdis_add_repo() {
 
     let mut gitdis = Gitdis::from(settings);
 
-    let settings = BranchSettings {
-        url: TEST_URL.to_string(),
-        branch_name: "main".to_string(),
-        pull_request_interval_millis: 1000,
-    };
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string());
 
-    let result = gitdis.add_repo(settings.clone());
+    let result = gitdis.add_repo(branch_settings.clone());
     assert_eq!(result, Ok(()));
 }
 
@@ -49,32 +42,19 @@ async fn test_gitdis_spawn_branch_listener() {
 
     let mut gitdis = Gitdis::new(settings, sender, receiver);
 
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string());
+
+    gitdis.add_repo(branch_settings.clone()).unwrap();
+
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string());
+
     gitdis
-        .add_repo(BranchSettings {
-            url: TEST_URL.to_string(),
-            branch_name: "main".to_string(),
-            pull_request_interval_millis: 1000,
-        })
+        .listen_branch(&branch_settings.repo_key, 1000)
         .unwrap();
-
-    let mut handler = gitdis
-        .create_branch_handler(BranchSettings {
-            url: TEST_URL.to_string(),
-            branch_name: "main".to_string(),
-            pull_request_interval_millis: 1000,
-        })
-        .unwrap();
-
-    thread::spawn(move || {
-        if let Err(e) = handler.listen() {
-            eprintln!("Error: {:?}", e);
-        }
-    });
 
     for event in gitdis.receiver.iter() {
         if let Event::Insert(data) = event {
             fs::remove_dir_all("data").unwrap();
-            println!("Data: {:?}", data);
             assert!(data.value.is_object());
             break;
         }

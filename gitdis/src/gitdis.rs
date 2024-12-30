@@ -1,17 +1,17 @@
 use std::sync::mpsc::{Receiver, Sender};
+use std::thread;
 use std::{
     collections::HashMap,
-    sync::{
-        mpsc::{self, SendError},
-        Arc, RwLock,
-    },
+    sync::mpsc::{self, SendError},
 };
 
 use branch_handler::BranchHandler;
 use log::debug;
-use quickleaf::{Cache, Event};
+use quickleaf::Event;
 
+use crate::branch_settings::BranchSettings;
 use crate::cache::ArcCache;
+use crate::cache_branch::CacheBranch;
 
 use super::branch_handler;
 
@@ -21,73 +21,22 @@ pub enum GitdisError {
     Sender(SendError<BranchSettings>),
     BranchNotFound,
 }
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct BranchSettings {
-    pub url: String,
-    pub branch_name: String,
-    pub pull_request_interval_millis: u64,
-}
-
-impl BranchSettings {
-    pub fn get_repo_key(&self) -> String {
-        let url = self.url.clone();
-        let url = url.split('/').collect::<Vec<&str>>();
-        let repo_name = url[url.len() - 1].split('.').collect::<Vec<&str>>()[0];
-        let repo_owner = {
-            let repo_owner = url[url.len() - 2];
-
-            if repo_owner.contains(":") {
-                repo_owner.split(':').collect::<Vec<&str>>()[1]
-            } else {
-                repo_owner
-            }
-        };
-
-        format!("{}/{}/{}", repo_owner, repo_name, self.branch_name)
-    }
-}
-
 pub struct GitdisSettings {
     pub total_branch_items: usize,
     pub local_clone_path: String,
 }
 
-#[derive(Clone)]
-pub struct CacheBranch {
-    cache: ArcCache,
-    create_at: u128,
-}
-
-impl CacheBranch {
-    pub fn new(total_cache_items: usize, sender: Sender<Event>) -> Self {
-        let create_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-
-        debug!("Creating new cache with {} items", total_cache_items);
-
-        CacheBranch {
-            cache: Arc::new(RwLock::new(Cache::with_sender(total_cache_items, sender))),
-            create_at,
-        }
-    }
-
-    pub fn get_data(&self) -> ArcCache {
-        self.cache.clone()
-    }
-
-    pub fn get_create_at(&self) -> u128 {
-        self.create_at
-    }
-}
-
 pub struct Gitdis {
     pub settings: GitdisSettings,
-    branches: HashMap<String, CacheBranch>,
+    branches: HashMap<String, Branch>,
     sender: Sender<Event>,
     pub receiver: Receiver<Event>,
+}
+
+#[derive(Clone)]
+pub struct Branch {
+    pub settings: BranchSettings,
+    pub cache: CacheBranch,
 }
 
 impl Gitdis {
@@ -104,19 +53,19 @@ impl Gitdis {
         self.settings = settings;
     }
 
-    pub fn get_object_branch(&self, repo_key: &str) -> Option<CacheBranch> {
+    pub fn get_branch(&self, repo_key: &str) -> Option<Branch> {
         match self.branches.get(repo_key) {
             Some(cache) => Some(cache.clone()),
             None => None,
         }
     }
 
-    pub fn get_data_branch(&self, repo_key: &str) -> Option<ArcCache> {
+    pub fn get_branch_data(&self, repo_key: &str) -> Option<ArcCache> {
         debug!("Getting branch: {}", repo_key);
         debug!("Branches: {:?}", self.branches.keys());
 
         match self.branches.get(repo_key) {
-            Some(cache) => Some(cache.get_data()),
+            Some(branch) => Some(branch.cache.get_data()),
             None => None,
         }
     }
@@ -124,7 +73,7 @@ impl Gitdis {
     pub fn add_repo(&mut self, settings: BranchSettings) -> Result<(), GitdisError> {
         debug!("Adding new repo");
 
-        let repo_key = settings.get_repo_key();
+        let repo_key = settings.repo_key.clone();
 
         debug!("Repo key: {}", repo_key);
 
@@ -133,36 +82,40 @@ impl Gitdis {
             return Err(GitdisError::RepoExists);
         }
 
-        let key = settings.get_repo_key();
+        let cache = CacheBranch::new(self.settings.total_branch_items, self.sender.clone());
 
-        self.branches.insert(
-            key.clone(),
-            CacheBranch::new(self.settings.total_branch_items, self.sender.clone()),
-        );
+        debug!("Added new repo: {}", repo_key);
 
-        debug!("Added new repo: {}", key);
+        self.branches.insert(repo_key, Branch { settings, cache });
 
         Ok(())
     }
 
-    pub fn create_branch_handler(
+    pub fn listen_branch(
         &self,
-        settings: BranchSettings,
-    ) -> Result<BranchHandler, GitdisError> {
-        let cache = match self.get_data_branch(&settings.get_repo_key()) {
+        repo_key: &str,
+        pull_request_interval_millis: u64,
+    ) -> Result<thread::JoinHandle<()>, GitdisError> {
+        let branch: Branch = match self.get_branch(&repo_key) {
             Some(cache) => cache,
             None => {
                 return Err(GitdisError::BranchNotFound);
             }
         };
 
-        Ok(BranchHandler::new(
+        let mut handler = BranchHandler::new(
             self.settings.local_clone_path.clone(),
-            settings.url,
-            settings.branch_name,
-            cache,
-            settings.pull_request_interval_millis,
-        ))
+            branch.settings.url,
+            branch.settings.branch_name,
+            branch.cache.get_data(),
+            pull_request_interval_millis,
+        );
+
+        Ok(thread::spawn(move || {
+            if let Err(e) = handler.listen() {
+                log::error!("Error listening branch: {:?}", e);
+            }
+        }))
     }
 
     pub fn listen_events<Callback>(&self, callback: Callback)
