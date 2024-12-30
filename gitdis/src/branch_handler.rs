@@ -248,6 +248,8 @@ impl BranchHandler {
             data.insert(self.fix_key(&file), value);
         }
 
+        println!("{:#?}", data);
+
         Ok(data)
     }
 

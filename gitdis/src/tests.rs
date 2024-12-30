@@ -57,19 +57,13 @@ async fn test_gitdis_spawn_branch_listener() {
         })
         .unwrap();
 
-    let mut handler = gitdis
-        .create_branch_handler(BranchSettings {
+    gitdis
+        .repo_listen(BranchSettings {
             url: TEST_URL.to_string(),
             branch_name: "main".to_string(),
             pull_request_interval_millis: 1000,
         })
         .unwrap();
-
-    thread::spawn(move || {
-        if let Err(e) = handler.listen() {
-            eprintln!("Error: {:?}", e);
-        }
-    });
 
     for event in gitdis.receiver.iter() {
         if let Event::Insert(data) = event {

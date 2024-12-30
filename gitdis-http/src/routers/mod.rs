@@ -1,5 +1,5 @@
 mod extras;
-mod gitdis;
+mod routes;
 use axum::{
     body::Body,
     http::{self, StatusCode},
@@ -8,11 +8,13 @@ use axum::{
     Extension, Router,
 };
 use extras::health_check;
-use ::gitdis::services::ArcGitdisService;
-use gitdis::{create_repo, get_object};
+use gitdis::prelude::*;
+use gitdis::prelude::*;
+use routes::create_repo;
 use serde::Serialize;
+use tokio::sync::mpsc::{self, Receiver};
 
-#[derive(Serialize)]
+#[derive(Serialize, ToValue)]
 pub struct MessageError {
     message: String,
 }
@@ -45,13 +47,10 @@ impl MessageError {
     }
 }
 
-pub fn routes(service: ArcGitdisService) -> Router {
+pub fn routes(service: GitdisService) -> Router {
     Router::new()
         .route("/health", get(health_check))
-        .route("/repos", post(create_repo))
-        .route(
-            "/repos/:owner/:repo/:branch/*object_key",
-            get(get_object),
-        )
+        // .route("/repos", post(create_repo))
+        // .route("/repos/:owner/:repo/:branch/*object_key", get(get_object))
         .layer(Extension(service))
 }

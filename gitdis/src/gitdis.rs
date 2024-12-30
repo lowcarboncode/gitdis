@@ -1,4 +1,5 @@
 use std::sync::mpsc::{Receiver, Sender};
+use std::thread;
 use std::{
     collections::HashMap,
     sync::{
@@ -20,6 +21,7 @@ pub enum GitdisError {
     RepoExists,
     Sender(SendError<BranchSettings>),
     BranchNotFound,
+    RepoListener,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -163,6 +165,19 @@ impl Gitdis {
             cache,
             settings.pull_request_interval_millis,
         ))
+    }
+
+    pub fn repo_listen(
+        &self,
+        settings: BranchSettings,
+    ) -> Result<thread::JoinHandle<()>, GitdisError> {
+        let mut handler = self.create_branch_handler(settings)?;
+
+        Ok(thread::spawn(move || {
+            if let Err(e) = handler.listen() {
+                eprintln!("Error: {:?}", e);
+            }
+        }))
     }
 
     pub fn listen_events<Callback>(&self, callback: Callback)

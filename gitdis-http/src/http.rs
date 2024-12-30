@@ -1,14 +1,14 @@
 use crate::routers::routes;
-use gitdis::services::ArcGitdisService;
+use gitdis::prelude::GitdisService;
 use log::debug;
 
 pub struct HttpServer {
     port: String,
-    service: ArcGitdisService,
+    service: GitdisService,
 }
 
 impl HttpServer {
-    pub fn new(port: String, service: ArcGitdisService) -> Self {
+    pub fn new(port: String, service: GitdisService) -> Self {
         Self { port, service }
     }
 
