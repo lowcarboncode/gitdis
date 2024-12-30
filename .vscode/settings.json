@@ -2,5 +2,10 @@
     "cSpell.words": [
         "GITDIS",
         "quickleaf"
-    ]
+    ],
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#0B2F4F",
+        "titleBar.activeBackground": "#10426F",
+        "titleBar.activeForeground": "#F9FCFE"
+    }
 }

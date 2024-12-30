@@ -1,8 +1,11 @@
-use std::{fs, sync::mpsc};
+use std::sync::mpsc;
 
 use branch_settings::BranchSettings;
 use gitdis::{Gitdis, GitdisSettings};
-use quickleaf::Event;
+use quickleaf::{
+    prelude::{NumberBehavior, StringBehavior},
+    Event,
+};
 
 use super::*;
 
@@ -52,7 +55,6 @@ async fn test_gitdis_spawn_branch_listener() {
 
     for event in gitdis.receiver.iter() {
         if let Event::Insert(data) = event {
-            // fs::remove_dir_all("data").unwrap();
             assert!(data.value.is_object());
             break;
         }
@@ -75,7 +77,7 @@ async fn test_gitdis_yml() {
     gitdis.add_repo(branch_settings.clone()).unwrap();
 
     gitdis
-        .listen_branch(&branch_settings.repo_key, Some("application1/settings.yml"))
+        .listen_branch(&branch_settings.repo_key, Some("default/settings.yml"))
         .unwrap();
 
     let mut count = 0;
@@ -91,11 +93,67 @@ async fn test_gitdis_yml() {
     match gitdis.get_branch_data(&branch_settings.repo_key) {
         Some(branch) => {
             let branch = branch.read().unwrap();
-            let data = branch.get("application1/settings").unwrap();
+            let data = branch.get("default/settings").unwrap();
 
             assert!(data.is_object());
-            assert_eq!(data.get("foo").unwrap().as_bool(), Some(&true));
-            assert_eq!(data.get("bar").unwrap().as_bool(), Some(&false));
+
+            let services = data.get("services").unwrap().as_object().unwrap();
+
+            assert_eq!(services.get("foo").unwrap().as_bool(), Some(&true));
+            assert_eq!(services.get("bar").unwrap().to_u64(), Some(123u64));
+            assert_eq!(
+                services.get("bax").unwrap().as_string(),
+                "hello".to_string()
+            );
+        }
+        None => panic!("Branch not found"),
+    }
+}
+
+#[tokio::test]
+async fn test_gitdis_json() {
+    let settings = GitdisSettings {
+        total_branch_items: 100,
+        local_clone_path: "data".to_string(),
+    };
+
+    let (sender, receiver) = mpsc::channel();
+
+    let mut gitdis = Gitdis::new(settings, sender, receiver);
+
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+
+    gitdis.add_repo(branch_settings.clone()).unwrap();
+
+    gitdis
+        .listen_branch(&branch_settings.repo_key, Some("default/settings.json"))
+        .unwrap();
+
+    let mut count = 0;
+    for event in gitdis.receiver.iter() {
+        if let Event::Insert(_) = event {
+            count += 1;
+            if count == 1 {
+                break;
+            }
+        }
+    }
+
+    match gitdis.get_branch_data(&branch_settings.repo_key) {
+        Some(branch) => {
+            let branch = branch.read().unwrap();
+            let data = branch.get("default/settings").unwrap();
+
+            assert!(data.is_object());
+
+            let services = data.get("services").unwrap().as_object().unwrap();
+
+            assert_eq!(services.get("foo").unwrap().as_bool(), Some(&true));
+            assert_eq!(services.get("bar").unwrap().to_u64(), Some(123u64));
+            assert_eq!(
+                services.get("bax").unwrap().as_string(),
+                "hello".to_string()
+            );
         }
         None => panic!("Branch not found"),
     }

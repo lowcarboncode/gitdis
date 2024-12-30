@@ -35,14 +35,14 @@ async fn main() -> std::io::Result<()> {
 
     let server = HttpServer::new(http_port, service.clone());
 
-    tokio::spawn(async move {
-        server.listen().await;
-    });
+    // tokio::spawn(async move {
+    //     server.listen().await;
+    // });
 
-    for settings in receiver.iter() {
-        let service = service.read().unwrap();
-        service.gitdis.create_branch_handler(settings.clone());
-    }
+    // for settings in receiver.iter() {
+    //     let service = service.read().unwrap();
+    //     // service.gitdis.create_branch_handler(settings.clone());
+    // }
 
     Ok(())
 }

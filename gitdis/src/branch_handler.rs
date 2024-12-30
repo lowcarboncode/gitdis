@@ -1,12 +1,11 @@
 use crate::cache::ArcCache;
 use log::debug;
 use quickleaf::valu3::prelude::*;
-use std::{collections::HashMap, path, process::Command};
+use std::{collections::HashMap, process::Command};
 
 const EXT_JSON: &str = ".json";
 const EXT_YML: &str = ".yml";
 const EXT_YAML: &str = ".yaml";
-const EXT_XML: &str = ".xml";
 
 #[derive(Debug, PartialEq)]
 pub enum BranchHandlerError {
@@ -150,8 +149,6 @@ impl BranchHandler {
             Value::json_to_value(&content).unwrap_or(Value::Undefined)
         } else if file.ends_with(EXT_YML) || file.ends_with(EXT_YAML) {
             serde_yaml::from_str(&content).unwrap_or(Value::Undefined)
-        } else if file.ends_with(EXT_XML) {
-            serde_xml_rs::from_str(&content).unwrap_or(Value::Undefined)
         } else {
             Value::Undefined
         }
@@ -270,7 +267,7 @@ impl BranchHandler {
         for file in files {
             let content = self.get_file_content(&file);
             let value = Self::payload_to_value(&file, &content);
-
+            println!("file: {}, value: {:#?}", file, value);
             data.insert(self.fix_key(&file), value);
         }
 
@@ -298,10 +295,7 @@ impl BranchHandler {
     }
 
     fn is_valid_file(&self, path: &str) -> bool {
-        path.ends_with(EXT_JSON)
-            || path.ends_with(EXT_YML)
-            || path.ends_with(EXT_YAML)
-            || path.ends_with(EXT_XML)
+        path.ends_with(EXT_JSON) || path.ends_with(EXT_YML) || path.ends_with(EXT_YAML)
     }
 
     fn is_ignore(&self, key: &str) -> bool {
