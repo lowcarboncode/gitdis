@@ -268,3 +268,37 @@ async fn test_gitdis_services_get_data() {
 
     assert_eq!(result, "r2.3");
 }
+
+#[tokio::test]
+async fn test_gitdis_services_get_list() {
+    let settings = GitdisSettings {
+        total_branch_items: 100,
+        local_clone_path: "data".to_string(),
+    };
+
+    let (sender, receiver) = mpsc::channel();
+
+    let mut service = GitdisService::new(settings, sender, receiver);
+
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
+
+    service.add_branch(branch_settings.clone()).unwrap();
+
+    service.listen_branch(&branch_settings.key).unwrap();
+
+    service
+        .gitdis
+        .await_branch_unsafe(&branch_settings.key, 1)
+        .await
+        .unwrap();
+
+    let result = service
+        .get_data(&branch_settings.key, "service.context.list(1.tags.1)")
+        .unwrap()
+        .unwrap()
+        .as_string();
+
+    println!("{:#?}", result);
+
+    assert_eq!(result, "tag2.2");
+}
