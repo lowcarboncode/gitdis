@@ -255,7 +255,7 @@ async fn test_gitdis_services_get_data() {
         .await
         .unwrap();
 
-    let result = service.get_data(&branch_settings.key, "default.settings");
+    let result = service.get_data(&branch_settings.key, "service.context.data");
 
     println!("{:#?}", result);
 }
