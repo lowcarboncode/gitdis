@@ -142,6 +142,15 @@ impl Gitdis {
     }
 }
 
+#[macro_export]
+macro_rules! listen_events_thread {
+    ($gitdis:ident, $callback:expr) => {
+        std::thread::spawn(move || {
+            $gitdis.listen_events($callback);
+        });
+    };
+}
+
 impl From<GitdisSettings> for Gitdis {
     fn from(settings: GitdisSettings) -> Self {
         let (sender, receiver) = mpsc::channel();

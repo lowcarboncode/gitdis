@@ -1,4 +1,7 @@
-use std::sync::mpsc;
+use std::{
+    sync::{mpsc, Arc, RwLock},
+    thread,
+};
 
 use branch_settings::BranchSettings;
 use gitdis::{Gitdis, GitdisSettings};
@@ -157,4 +160,41 @@ async fn test_gitdis_json() {
         }
         None => panic!("Branch not found"),
     }
+}
+
+#[tokio::test]
+async fn test_gitdis_listen_events() {
+    let settings = GitdisSettings {
+        total_branch_items: 100,
+        local_clone_path: "data".to_string(),
+    };
+
+    let (sender, receiver) = mpsc::channel();
+
+    let mut gitdis = Gitdis::new(settings, sender, receiver);
+
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+
+    gitdis.add_repo(branch_settings.clone()).unwrap();
+
+    gitdis
+        .listen_branch(&branch_settings.repo_key, Some("default/settings.json"))
+        .unwrap();
+
+    let count = Arc::new(RwLock::new(0));
+
+    let count_clone = count.clone();
+
+    listen_events_thread!(gitdis, move |event| {
+        if let Event::Insert(_) = event {
+            let mut count = count_clone.write().unwrap();
+            *count += 1;
+        }
+    });
+
+    while *count.read().unwrap() < 1 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+    }
+
+    assert_eq!(*count.read().unwrap(), 1);
 }
