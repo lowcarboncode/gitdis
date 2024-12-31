@@ -90,6 +90,16 @@ impl Gitdis {
         }
     }
 
+    // pub fn get(&self, branch_key: &str, key: &str) -> Option<Value> {
+    //     debug!("Getting branch: {}", branch_key);
+    //     debug!("Branches: {:?}", self.branches.keys());
+
+    //     match self.branches.get(branch_key) {
+    //         Some(branch) => branch.cache.get(key),
+    //         None => None,
+    //     }
+    // }
+
     pub fn add_branch(&mut self, settings: BranchSettings) -> Result<(), GitdisError> {
         debug!("Adding new repo");
 

@@ -21,41 +21,48 @@ impl std::fmt::Display for BranchHandlerError {
     }
 }
 
-macro_rules! insert_ref {
-    ($cache:expr, $key:expr, $refs:expr) => {
-        if !$refs.is_empty() {
-            let positions = {
-                let list = $cache.get_list();
-                let mut positions = HashMap::new();
+macro_rules! get_cache_list_positions {
+    ($cache:expr) => {{
+        let list = $cache.get_list();
+        let mut positions = HashMap::new();
 
-                for (index, key) in list.iter().enumerate() {
-                    positions.insert(key.clone(), index);
-                }
-
-                positions
-            };
-
-            $refs.iter().for_each(|(_key, refer)| {
-                let mut refs_values = vec![
-                    {
-                        if refer.ref_type == RefType::Object {
-                            1
-                        } else {
-                            0
-                        }
-                    };
-                    refer.items.len()
-                ];
-
-                refer.items.iter().for_each(|key| {
-                    if let Some(position) = positions.get(key) {
-                        refs_values.push(*position);
-                    }
-                });
-
-                $cache.insert($key.clone(), refs_values.to_value());
-            });
+        for (index, key) in list.iter().enumerate() {
+            positions.insert(key.clone(), index);
         }
+
+        positions
+    }};
+}
+
+macro_rules! insert_ref {
+    ($cache:expr, $refs:expr) => {
+        if !$refs.is_empty() {
+            let positions = get_cache_list_positions!($cache);
+
+            insert_ref!($cache, $refs, positions);
+        }
+    };
+    ($cache:expr, $refs:expr, $positions:expr) => {
+        $refs.iter().for_each(|(target, refer)| {
+            let mut refs_values = vec![
+                {
+                    if refer.ref_type == RefType::Object {
+                        1
+                    } else {
+                        0
+                    }
+                };
+                refer.items.len()
+            ];
+
+            refer.items.iter().for_each(|key| {
+                if let Some(position) = $positions.get(key) {
+                    refs_values.push(*position);
+                }
+            });
+
+            $cache.insert(target, refs_values.to_value());
+        });
     };
 }
 
@@ -229,12 +236,12 @@ impl BranchHandler {
                             let content = self.get_file_content(&file);
                             let key: String = self.fix_key(&file);
 
-                            let (value, refs) = payload::to_value(&file, &content);
+                            let (value, refs) = payload::to_value(key.clone(), &file, &content);
 
                             match self.cache.write() {
                                 Ok(mut cache) => {
                                     cache.insert(key.clone(), value);
-                                    insert_ref!(cache, key, refs);
+                                    insert_ref!(cache, refs);
                                 }
                                 Err(_) => continue,
                             };
@@ -253,13 +260,14 @@ impl BranchHandler {
                                 let new_file = format!("{}/{}", self.repo_path, new_file);
                                 let content = self.get_file_content(&new_file);
                                 let key = self.fix_key(&new_file);
-                                let (value, refs) = payload::to_value(&new_file, &content);
+                                let (value, refs) =
+                                    payload::to_value(key.clone(), &new_file, &content);
 
                                 match self.cache.write() {
                                     Ok(mut cache) => {
                                         cache.insert(key.clone(), value);
                                         cache.remove(&self.fix_key(&file)).unwrap();
-                                        insert_ref!(cache, key, refs);
+                                        insert_ref!(cache, refs);
                                     }
                                     Err(_) => continue,
                                 };
@@ -286,28 +294,50 @@ impl BranchHandler {
 
     fn get_initial_data(
         &self,
-    ) -> Result<HashMap<String, (Value, HashMap<String, Ref>)>, BranchHandlerError> {
+    ) -> Result<(HashMap<String, Value>, HashMap<String, Ref>), BranchHandlerError> {
         let files = self.list_all_files(&self.target_path);
-        let mut data = HashMap::new();
+        let mut values = Vec::new();
 
         for file in files {
             let content = self.get_file_content(&file);
             let key = self.fix_key(&file);
-            let value = payload::to_value(&file, &content);
-            data.insert(key, value);
+
+            values.push(payload::to_value(key, &file, &content));
         }
 
-        Ok(data)
+        let mut refers = HashMap::new();
+        let mut new_values = HashMap::new();
+
+        values.into_iter().for_each(|(value, refs)| {
+            for (key, refer) in refs {
+                refers.insert(key, refer.clone());
+            }
+
+            let inner_value = match value.as_object().unwrap() {
+                Object::HashMap(map) => map.clone(),
+                _ => HashMap::new(),
+            };
+
+            for (key, value) in inner_value {
+                new_values.insert(key.to_string(), value);
+            }
+        });
+
+        Ok((new_values, refers))
     }
 
     fn load_initial_data(&mut self) -> Result<(), BranchHandlerError> {
-        let data = self.get_initial_data()?;
+        let (values, refers) = self.get_initial_data()?;
 
         match self.cache.write() {
             Ok(mut cache) => {
-                for (key, (value, refs)) in data {
-                    cache.insert(key.clone(), value);
-                    insert_ref!(cache, key, refs);
+                for (key, value) in values {
+                    cache.insert(key, value);
+                }
+
+                if !refers.is_empty() {
+                    let positions = get_cache_list_positions!(cache);
+                    insert_ref!(cache, refers, positions);
                 }
             }
             Err(_) => (),

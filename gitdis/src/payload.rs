@@ -16,13 +16,13 @@ pub fn parse_value(file: &str, content: &str) -> Value {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RefType {
     Object,
     Array,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Ref {
     pub ref_type: RefType,
     pub items: Vec<String>,
@@ -97,8 +97,15 @@ pub fn value_to_mapper(value: Value) -> (Value, HashMap<String, Ref>) {
     (mapper.to_value(), refs)
 }
 
-pub fn to_value(file: &str, content: &str) -> (Value, HashMap<String, Ref>) {
-    let value = parse_value(file, content);
+pub fn to_value(key: String, file: &str, content: &str) -> (Value, HashMap<String, Ref>) {
+    let value = {
+        let mut value = HashMap::new();
+
+        value.insert(key, parse_value(file, content));
+
+        value.to_value()
+    };
+
     value_to_mapper(value)
 }
 
@@ -196,7 +203,6 @@ mod tests {
         .unwrap();
 
         let refs = value_to_mapper(value).1;
-        println!("{:#?}", refs);
 
         assert_eq!(
             refs.get("key1.key2.key3").unwrap(),
@@ -226,8 +232,6 @@ mod tests {
         .unwrap();
 
         let mapper = value_to_mapper(value).0;
-
-        println!("{:#?}", mapper);
 
         assert_eq!(mapper.get("key1.key2.key3.1").unwrap().as_string(), "world");
     }

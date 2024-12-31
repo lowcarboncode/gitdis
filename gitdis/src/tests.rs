@@ -264,8 +264,6 @@ async fn test_gitdis_services_get_data() {
         .unwrap()
         .as_string();
 
-    println!("{:#?}", result);
-
     assert_eq!(result, "r2.3");
 }
 
@@ -297,8 +295,6 @@ async fn test_gitdis_services_get_list() {
         .unwrap()
         .unwrap()
         .as_string();
-
-    println!("{:#?}", result);
 
     assert_eq!(result, "tag2.2");
 }
