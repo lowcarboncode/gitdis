@@ -22,6 +22,7 @@ pub enum RefType {
     Array,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Ref {
     pub ref_type: RefType,
     pub items: Vec<String>,
@@ -134,17 +135,14 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper(value).0;
+        let refer = value_to_mapper(value).1;
 
         assert_eq!(
-            mapper
-                .get("data.content.key1.key2.key3.key4.key5.key6")
-                .unwrap(),
-            &Value::from({
-                let mut map = HashMap::new();
-                map.insert("key7", "hello".to_string());
-                map
-            })
+            refer.get("key1.key2.key3.key4.key5.key6").unwrap(),
+            &Ref {
+                ref_type: RefType::Object,
+                items: vec!["key1.key2.key3.key4.key5.key6.key7".to_string()]
+            }
         );
     }
 
@@ -175,7 +173,7 @@ mod tests {
 
         assert_eq!(
             mapper
-                .get("data.content.key1.key2.key3.key4.key5.key6.key7")
+                .get("key1.key2.key3.key4.key5.key6.key7")
                 .unwrap()
                 .as_string(),
             "hello"
@@ -197,11 +195,18 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper(value).0;
+        let refs = value_to_mapper(value).1;
+        println!("{:#?}", refs);
 
         assert_eq!(
-            mapper.get("data.content.key1.key2.key3").unwrap(),
-            &vec![Value::from("hello"), Value::from("world")].to_value()
+            refs.get("key1.key2.key3").unwrap(),
+            &Ref {
+                ref_type: RefType::Array,
+                items: vec![
+                    "key1.key2.key3.0".to_string(),
+                    "key1.key2.key3.1".to_string()
+                ]
+            }
         );
     }
 
@@ -222,12 +227,8 @@ mod tests {
 
         let mapper = value_to_mapper(value).0;
 
-        assert_eq!(
-            mapper
-                .get("data.content.key1.key2.key3.1")
-                .unwrap()
-                .as_string(),
-            "world"
-        );
+        println!("{:#?}", mapper);
+
+        assert_eq!(mapper.get("key1.key2.key3.1").unwrap().as_string(), "world");
     }
 }
