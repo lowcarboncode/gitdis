@@ -746,9 +746,9 @@ dependencies = [
 
 [[package]]
 name = "quickleaf"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3ab2c278c25e1e1664deba86152a460225475ae123edf08a6f3e7cd2e11bcd5"
+checksum = "ad69ec336ae4ad477c8770153eca4616011e892cf907b2db798c9c1f34873e2c"
 dependencies = [
  "valu3",
 ]

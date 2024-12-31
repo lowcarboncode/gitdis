@@ -16,37 +16,73 @@ pub fn parse_value(file: &str, content: &str) -> Value {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum RefType {
+    Object,
+    Array,
+}
+
+pub struct Ref {
+    pub ref_type: RefType,
+    pub items: Vec<String>,
+}
+
 /// Transforms a nested `Value` into a flat `HashMap` with dot-separated keys.
 /// This version also supports arrays, representing their indices in the keys.
 /// Example:
 /// Input: { "key": { "key2": ["value1", {"key3": "value2"}] } }
 /// Output: { "key.key2.0": "value1", "key.key2.1.key3": "value2" }
-pub fn value_to_mapper(value: Value) -> HashMap<String, Value> {
-    fn flatten(value: &Value, prefix: String, mapper: &mut HashMap<String, Value>) {
+pub fn value_to_mapper(value: Value) -> (Value, HashMap<String, Ref>) {
+    fn flatten(
+        value: &Value,
+        prefix: String,
+        mapper: &mut HashMap<String, Value>,
+        refs: &mut HashMap<String, Ref>,
+    ) {
         match value {
             Value::Object(obj) => {
+                let mut list_keys = Vec::new();
+
                 for (key, sub_value) in obj.iter() {
                     let new_key = if prefix.is_empty() {
                         key.to_string()
                     } else {
                         format!("{}.{}", prefix, key)
                     };
-                    flatten(sub_value, new_key, mapper);
+
+                    list_keys.push(new_key.clone());
+                    flatten(sub_value, new_key, mapper, refs);
                 }
 
-                mapper.insert(prefix.to_string(), obj.to_value());
+                refs.insert(
+                    prefix.to_string(),
+                    Ref {
+                        ref_type: RefType::Object,
+                        items: list_keys,
+                    },
+                );
             }
             Value::Array(arr) => {
+                let mut list_keys = Vec::new();
+
                 for (index, sub_value) in arr.into_iter().enumerate() {
                     let new_key = if prefix.is_empty() {
                         index.to_string()
                     } else {
                         format!("{}.{}", prefix, index)
                     };
-                    flatten(sub_value, new_key, mapper);
+
+                    list_keys.push(new_key.clone());
+                    flatten(sub_value, new_key, mapper, refs);
                 }
 
-                mapper.insert(prefix.to_string(), arr.to_value());
+                refs.insert(
+                    prefix.to_string(),
+                    Ref {
+                        ref_type: RefType::Array,
+                        items: list_keys,
+                    },
+                );
             }
             _ => {
                 mapper.insert(prefix, value.clone());
@@ -55,14 +91,14 @@ pub fn value_to_mapper(value: Value) -> HashMap<String, Value> {
     }
 
     let mut mapper = HashMap::new();
-    flatten(&value, String::new(), &mut mapper);
-    mapper
+    let mut refs = HashMap::new();
+    flatten(&value, String::new(), &mut mapper, &mut refs);
+    (mapper.to_value(), refs)
 }
 
-pub fn to_value(file: &str, content: &str) -> Value {
+pub fn to_value(file: &str, content: &str) -> (Value, HashMap<String, Ref>) {
     let value = parse_value(file, content);
-    let mapper = value_to_mapper(value).to_value();
-    mapper
+    value_to_mapper(value)
 }
 
 pub fn is_valid_file(path: &str) -> bool {
@@ -98,7 +134,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper(value);
+        let mapper = value_to_mapper(value).0;
 
         assert_eq!(
             mapper
@@ -135,7 +171,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper(value);
+        let mapper = value_to_mapper(value).0;
 
         assert_eq!(
             mapper
@@ -161,7 +197,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper(value);
+        let mapper = value_to_mapper(value).0;
 
         assert_eq!(
             mapper.get("data.content.key1.key2.key3").unwrap(),
@@ -184,7 +220,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper(value);
+        let mapper = value_to_mapper(value).0;
 
         assert_eq!(
             mapper

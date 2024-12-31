@@ -1,4 +1,7 @@
-use crate::{cache::ArcCache, payload};
+use crate::{
+    cache::ArcCache,
+    payload::{self, Ref, RefType},
+};
 use log::debug;
 use quickleaf::valu3::prelude::*;
 use std::{collections::HashMap, process::Command};
@@ -16,6 +19,44 @@ impl std::fmt::Display for BranchHandlerError {
             }
         }
     }
+}
+
+macro_rules! insert_ref {
+    ($cache:expr, $key:expr, $refs:expr) => {
+        if !$refs.is_empty() {
+            let positions = {
+                let list = $cache.get_list();
+                let mut positions = HashMap::new();
+
+                for (index, key) in list.iter().enumerate() {
+                    positions.insert(key.clone(), index);
+                }
+
+                positions
+            };
+
+            $refs.iter().for_each(|(_key, refer)| {
+                let mut refs_values = vec![
+                    {
+                        if refer.ref_type == RefType::Object {
+                            1
+                        } else {
+                            0
+                        }
+                    };
+                    refer.items.len()
+                ];
+
+                refer.items.iter().for_each(|key| {
+                    if let Some(position) = positions.get(key) {
+                        refs_values.push(*position);
+                    }
+                });
+
+                $cache.insert($key.clone(), refs_values.to_value());
+            });
+        }
+    };
 }
 
 enum Status {
@@ -105,16 +146,6 @@ impl BranchHandler {
         self.repo_path = format!("{}/{}", self.repo_path, path)
     }
 
-    /// Get the data from the repository instantly
-    pub fn clone_and_get_data(&self) -> Result<HashMap<String, Value>, BranchHandlerError> {
-        if !std::path::Path::new(&self.clone_path).exists() {
-            std::fs::create_dir(&self.clone_path).expect("Failed to create repo directory");
-        }
-
-        self.git_clone()?;
-        self.get_initial_data()
-    }
-
     pub fn listen(&mut self) -> Result<(), BranchHandlerError> {
         self.setup()?;
 
@@ -198,10 +229,13 @@ impl BranchHandler {
                             let content = self.get_file_content(&file);
                             let key: String = self.fix_key(&file);
 
-                            let value = payload::to_value(&file, &content);
+                            let (value, refs) = payload::to_value(&file, &content);
 
                             match self.cache.write() {
-                                Ok(mut cache) => cache.insert(&key, value),
+                                Ok(mut cache) => {
+                                    cache.insert(key.clone(), value);
+                                    insert_ref!(cache, key, refs);
+                                }
                                 Err(_) => continue,
                             };
                         }
@@ -219,12 +253,13 @@ impl BranchHandler {
                                 let new_file = format!("{}/{}", self.repo_path, new_file);
                                 let content = self.get_file_content(&new_file);
                                 let key = self.fix_key(&new_file);
-                                let value = payload::to_value(&new_file, &content);
+                                let (value, refs) = payload::to_value(&new_file, &content);
 
                                 match self.cache.write() {
                                     Ok(mut cache) => {
-                                        cache.insert(key, value);
+                                        cache.insert(key.clone(), value);
                                         cache.remove(&self.fix_key(&file)).unwrap();
+                                        insert_ref!(cache, key, refs);
                                     }
                                     Err(_) => continue,
                                 };
@@ -249,7 +284,9 @@ impl BranchHandler {
             .to_string()
     }
 
-    fn get_initial_data(&self) -> Result<HashMap<String, Value>, BranchHandlerError> {
+    fn get_initial_data(
+        &self,
+    ) -> Result<HashMap<String, (Value, HashMap<String, Ref>)>, BranchHandlerError> {
         let files = self.list_all_files(&self.target_path);
         let mut data = HashMap::new();
 
@@ -268,8 +305,9 @@ impl BranchHandler {
 
         match self.cache.write() {
             Ok(mut cache) => {
-                for (key, value) in data {
-                    cache.insert(&key, value);
+                for (key, (value, refs)) in data {
+                    cache.insert(key.clone(), value);
+                    insert_ref!(cache, key, refs);
                 }
             }
             Err(_) => (),
