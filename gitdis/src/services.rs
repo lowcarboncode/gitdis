@@ -83,19 +83,54 @@ impl GitdisService {
         }
     }
 
+    //// Get the key and property from a string
+    ///
+    /// # Example
+    /// ```
+    /// let (key, property) = get_key_and_property("service.context.data(resources.1.tags.2)");
+    /// assert_eq!(key, "service.context.data");
+    /// assert_eq!(property, "resources.1.tags.2");
+    /// ```
+    fn get_key_and_property<'a>(key: &'a str) -> (&'a str, Option<&'a str>) {
+        let bytes = key.as_bytes();
+
+        if let Some(start) = bytes.iter().position(|&c| c == b'(') {
+            if let Some(end) = bytes.iter().rposition(|&c| c == b')') {
+                // Use slices directly on the byte indices
+                return (&key[..start], Some(&key[start + 1..end]));
+            }
+        }
+
+        (key, None)
+    }
+
     pub fn get_data(
         &self,
         branch_key: &str,
-        object_key: &str,
+        link: &str,
     ) -> Result<Option<Value>, GitdisServiceError> {
-        debug!("Getting data from branch {} {}", branch_key, object_key);
+        debug!("Getting data from branch {} {}", branch_key, link);
+
+        let (namespace, prop_path) = Self::get_key_and_property(link);
 
         match self.gitdis.get_branch_cache(&branch_key) {
-            Some(branch) => match branch.read() {
-                Ok(branch) => match branch.get(&object_key) {
-                    Some(value) => Ok(Some(value.clone())),
-                    None => Ok(None),
-                },
+            Some(cache) => match cache.read() {
+                Ok(cache) => {
+                    let value = cache.get(namespace).cloned();
+
+                    if value.is_none() {
+                        return Ok(None);
+                    }
+
+                    if prop_path.is_none() {
+                        return Ok(value);
+                    }
+
+                    return match value.unwrap() {
+                        Value::Object(obj) => Ok(obj.get(prop_path.unwrap()).cloned()),
+                        _ => Ok(None),
+                    };
+                }
                 Err(err) => {
                     return Err(GitdisServiceError::InternalError(err.to_string()));
                 }

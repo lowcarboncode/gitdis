@@ -3,10 +3,6 @@ use log::debug;
 use quickleaf::valu3::prelude::*;
 use std::{collections::HashMap, process::Command};
 
-const EXT_JSON: &str = ".json";
-const EXT_YML: &str = ".yml";
-const EXT_YAML: &str = ".yaml";
-
 #[derive(Debug, PartialEq)]
 pub enum BranchHandlerError {
     GitError((Option<i32>, String)),
