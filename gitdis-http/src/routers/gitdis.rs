@@ -1,9 +1,9 @@
 use axum::{extract::Path, http, Extension, Json};
+use gitdis::prelude::valu3::prelude::ToValueBehavior;
 use gitdis::prelude::*;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use valu3::value::Value;
-use gitdis::prelude::valu3::prelude::ToValueBehavior;
 
 use super::{ArcGitdisService, MessageError, Response};
 
@@ -48,7 +48,7 @@ pub async fn create_repo(
     debug!("Creating new repo router");
     let mut services = gitdis.write().unwrap();
 
-    match services.create_repo(payload.into()) {
+    match services.add_branch(payload.into()) {
         Ok(data) => Ok(Response {
             status: http::StatusCode::CREATED,
             data: data.to_value(),

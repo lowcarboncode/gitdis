@@ -2,7 +2,7 @@ use std::sync::{mpsc, Arc, RwLock};
 
 use branch_settings::BranchSettings;
 use gitdis::{Gitdis, GitdisSettings};
-use prelude::GitdisService;
+use prelude::{GitdisService, ServiceAddBranchResponse};
 use quickleaf::{
     prelude::{NumberBehavior, StringBehavior},
     Event,
@@ -13,11 +13,11 @@ use super::*;
 const TEST_URL: &str = "https://github.com/lowcarboncode/gitdis-example-repository.git";
 
 #[test]
-fn test_branch_settings_get_repo_key() {
+fn test_branch_settings_get_branch_key() {
     let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
 
-    let repo_key = branch_settings.repo_key;
-    assert_eq!(repo_key, "lowcarboncode/gitdis-example-repository/main");
+    let branch_key = branch_settings.key;
+    assert_eq!(branch_key, "lowcarboncode/gitdis-example-repository/main");
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn test_gitdis_add_repo() {
 
     let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
 
-    let result = gitdis.add_repo(branch_settings.clone());
+    let result = gitdis.add_branch(branch_settings.clone());
     assert_eq!(result, Ok(()));
 }
 
@@ -48,9 +48,9 @@ async fn test_gitdis_spawn_branch_listener() {
 
     let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
 
-    gitdis.add_repo(branch_settings.clone()).unwrap();
+    gitdis.add_branch(branch_settings.clone()).unwrap();
 
-    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
+    gitdis.listen_branch(&branch_settings.key).unwrap();
 
     for event in gitdis.receiver.iter() {
         if let Event::Insert(data) = event {
@@ -78,9 +78,9 @@ async fn test_gitdis_yml() {
         Some("default/settings.yml".to_string()),
     );
 
-    gitdis.add_repo(branch_settings.clone()).unwrap();
+    gitdis.add_branch(branch_settings.clone()).unwrap();
 
-    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
+    gitdis.listen_branch(&branch_settings.key).unwrap();
 
     let mut count = 0;
     for event in gitdis.receiver.iter() {
@@ -92,7 +92,7 @@ async fn test_gitdis_yml() {
         }
     }
 
-    match gitdis.get_branch_data(&branch_settings.repo_key) {
+    match gitdis.get_branch_cache(&branch_settings.key) {
         Some(branch) => {
             let branch = branch.read().unwrap();
             let data = branch.get("default/settings").unwrap();
@@ -130,9 +130,9 @@ async fn test_gitdis_json() {
         Some("default/settings.json".to_string()),
     );
 
-    gitdis.add_repo(branch_settings.clone()).unwrap();
+    gitdis.add_branch(branch_settings.clone()).unwrap();
 
-    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
+    gitdis.listen_branch(&branch_settings.key).unwrap();
 
     let mut count = 0;
     for event in gitdis.receiver.iter() {
@@ -144,7 +144,7 @@ async fn test_gitdis_json() {
         }
     }
 
-    match gitdis.get_branch_data(&branch_settings.repo_key) {
+    match gitdis.get_branch_cache(&branch_settings.key) {
         Some(branch) => {
             let branch = branch.read().unwrap();
             let data = branch.get("default/settings").unwrap();
@@ -182,9 +182,9 @@ async fn test_gitdis_listen_events() {
         Some("default/settings.json".to_string()),
     );
 
-    gitdis.add_repo(branch_settings.clone()).unwrap();
+    gitdis.add_branch(branch_settings.clone()).unwrap();
 
-    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
+    gitdis.listen_branch(&branch_settings.key).unwrap();
 
     let count = Arc::new(RwLock::new(0));
 
@@ -205,7 +205,7 @@ async fn test_gitdis_listen_events() {
 }
 
 #[tokio::test]
-async fn test_gitdis_services_create_repo() {
+async fn test_gitdis_services_add_branch() {
     let settings = GitdisSettings {
         total_branch_items: 100,
         local_clone_path: "data".to_string(),
@@ -215,9 +215,50 @@ async fn test_gitdis_services_create_repo() {
 
     let mut service = GitdisService::new(settings, sender, receiver);
 
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
 
-    let result = service.create_repo(branch_settings.clone());
+    let result = service.add_branch(branch_settings.clone());
 
-    assert_eq!(result.is_ok(), true);
+    assert_eq!(
+        result.clone(),
+        Ok(ServiceAddBranchResponse {
+            url: branch_settings.url,
+            branch_name: branch_settings.branch_name,
+            key: branch_settings.key,
+            pull_request_interval_millis: branch_settings.pull_request_interval_millis,
+            path_target: branch_settings.path_target,
+            create_at: result.unwrap().create_at,
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_gitdis_services_get_data() {
+    let settings = GitdisSettings {
+        total_branch_items: 100,
+        local_clone_path: "data".to_string(),
+    };
+
+    let (sender, receiver) = mpsc::channel();
+
+    let mut service = GitdisService::new(settings, sender, receiver);
+
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
+
+    service.add_branch(branch_settings.clone()).unwrap();
+
+    service.listen_branch(&branch_settings.key).unwrap();
+
+    service
+        .gitdis
+        .await_branch_unsafe(&branch_settings.key, 1)
+        .await
+        .unwrap();
+
+    let result = service.get_data(&branch_settings.key, "default/settings");
+
+    println!("{:#?}", result);
+
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_some());
 }

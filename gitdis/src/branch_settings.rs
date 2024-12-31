@@ -2,7 +2,7 @@
 pub struct BranchSettings {
     pub url: String,
     pub branch_name: String,
-    pub repo_key: String,
+    pub key: String,
     pub pull_request_interval_millis: u64,
     pub path_target: Option<String>,
 }
@@ -14,18 +14,18 @@ impl BranchSettings {
         pull_request_interval_millis: u64,
         path_target: Option<String>,
     ) -> Self {
-        let repo_key = Self::crete_repo_key(&url, &branch_name);
+        let key = Self::crete_branch_key(&url, &branch_name);
 
         Self {
             url,
             branch_name,
-            repo_key,
+            key,
             pull_request_interval_millis,
             path_target,
         }
     }
 
-    fn crete_repo_key(url: &str, branch_name: &str) -> String {
+    fn crete_branch_key(url: &str, branch_name: &str) -> String {
         let url = url.split('/').collect::<Vec<&str>>();
         let repo_name = url[url.len() - 1].split('.').collect::<Vec<&str>>()[0];
         let repo_owner = {

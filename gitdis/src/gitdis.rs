@@ -33,6 +33,7 @@ pub struct Gitdis {
     branches: HashMap<String, Branch>,
     sender: Sender<Event>,
     pub receiver: Receiver<Event>,
+    listener_branch_active: bool,
 }
 
 #[derive(Clone)]
@@ -66,6 +67,7 @@ impl Gitdis {
             branches: HashMap::new(),
             sender,
             receiver,
+            listener_branch_active: false,
         }
     }
 
@@ -73,54 +75,54 @@ impl Gitdis {
         self.settings = settings;
     }
 
-    pub fn get_branch(&self, repo_key: &str) -> Option<Branch> {
-        match self.branches.get(repo_key) {
+    pub fn get_branch(&self, branch_key: &str) -> Option<Branch> {
+        match self.branches.get(branch_key) {
             Some(cache) => Some(cache.clone()),
             None => None,
         }
     }
 
-    pub fn get_branch_data(&self, repo_key: &str) -> Option<ArcCache> {
-        debug!("Getting branch: {}", repo_key);
+    pub fn get_branch_cache(&self, branch_key: &str) -> Option<&ArcCache> {
+        debug!("Getting branch: {}", branch_key);
         debug!("Branches: {:?}", self.branches.keys());
 
-        match self.branches.get(repo_key) {
-            Some(branch) => Some(branch.cache.get_data().clone()),
+        match self.branches.get(branch_key) {
+            Some(branch) => Some(&branch.cache.get_data()),
             None => None,
         }
     }
 
-    pub fn add_repo(&mut self, settings: BranchSettings) -> Result<(), GitdisError> {
+    pub fn add_branch(&mut self, settings: BranchSettings) -> Result<(), GitdisError> {
         debug!("Adding new repo");
 
-        let repo_key = settings.repo_key.clone();
+        let branch_key = settings.key.clone();
 
-        debug!("Repo key: {}", repo_key);
+        debug!("Repo key: {}", branch_key);
 
-        if self.branches.contains_key(&repo_key) {
+        if self.branches.contains_key(&branch_key) {
             debug!("Repo already exists");
             return Err(GitdisError::RepoExists);
         }
 
         let cache = CacheBranch::new(self.settings.total_branch_items, self.sender.clone());
 
-        debug!("Added new repo: {}", repo_key);
+        debug!("Added new repo: {}", branch_key);
 
-        self.branches.insert(repo_key, Branch { settings, cache });
+        self.branches.insert(branch_key, Branch { settings, cache });
 
         Ok(())
     }
 
-    pub fn listen_all_branches(&self) {
-        for (repo_key, _) in self.branches.iter() {
-            if let Err(err) = self.listen_branch(repo_key) {
+    pub fn listen_all_branches(&mut self) {
+        for (branch_key, _) in self.branches.iter() {
+            if let Err(err) = self.listen_branch(branch_key) {
                 log::error!("Error listening branch: {:?}", err);
             }
         }
     }
 
-    pub fn listen_branch(&self, repo_key: &str) -> Result<thread::JoinHandle<()>, GitdisError> {
-        let branch: Branch = match self.get_branch(&repo_key) {
+    pub fn listen_branch(&self, branch_key: &str) -> Result<thread::JoinHandle<()>, GitdisError> {
+        let branch: Branch = match self.get_branch(&branch_key) {
             Some(cache) => cache,
             None => {
                 return Err(GitdisError::BranchNotFound);
@@ -141,6 +143,33 @@ impl Gitdis {
                 log::error!("Error listening branch: {:?}", e);
             }
         }))
+    }
+
+    /// Await branch data to be filled
+    /// This method is unsafe because it can cause a deadlock
+    #[cfg(test)]
+    pub async fn await_branch_unsafe(
+        &self,
+        branch_key: &str,
+        interval_millis: u64,
+    ) -> Result<(), GitdisError> {
+        loop {
+            let branch: Branch = match self.get_branch(&branch_key) {
+                Some(cache) => cache,
+                None => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
+
+            if branch.cache.get_data().read().unwrap().len() > 0 {
+                break;
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(interval_millis)).await;
+        }
+
+        Ok(())
     }
 
     pub fn listen_events<Callback>(&self, callback: Callback)
@@ -164,6 +193,15 @@ impl Gitdis {
             }
         }
     }
+}
+
+#[macro_export]
+macro_rules! await_branch_unsafe {
+    ($gitdis:ident) => {
+        async {
+            $gitdis.await_branch_unsafe().await;
+        };
+    };
 }
 
 #[macro_export]
