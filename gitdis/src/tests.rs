@@ -255,7 +255,12 @@ async fn test_gitdis_services_get_data() {
         .await
         .unwrap();
 
-    let result = service.get_data(&branch_settings.key, "service.context.data.tags.0");
+    let result = service.get_data(
+        &branch_settings.key,
+        "service.context.data.resources.1.tags.2",
+    );
 
     println!("{:#?}", result);
+
+    // assert_eq!(result, "r2.3");
 }

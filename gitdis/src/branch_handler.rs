@@ -1,4 +1,4 @@
-use crate::cache::ArcCache;
+use crate::{cache::ArcCache, payload};
 use log::debug;
 use quickleaf::valu3::prelude::*;
 use std::{collections::HashMap, process::Command};
@@ -144,16 +144,6 @@ impl BranchHandler {
         Ok(())
     }
 
-    fn payload_to_value(file: &str, content: &str) -> Value {
-        if file.ends_with(EXT_JSON) {
-            Value::json_to_value(&content).unwrap_or(Value::Undefined)
-        } else if file.ends_with(EXT_YML) || file.ends_with(EXT_YAML) {
-            serde_yaml::from_str(&content).unwrap_or(Value::Undefined)
-        } else {
-            Value::Undefined
-        }
-    }
-
     fn update(&mut self) -> Result<(), BranchHandlerError> {
         self.git_pull()?;
 
@@ -210,11 +200,12 @@ impl BranchHandler {
                     match status {
                         Status::Added | Status::Modified | Status::Copied => {
                             let content = self.get_file_content(&file);
+                            let key: String = self.fix_key(&file);
 
-                            let value = Self::payload_to_value(&file, &content);
+                            let value = payload::to_value(&key, &file, &content);
 
                             match self.cache.write() {
-                                Ok(mut cache) => cache.insert(self.fix_key(&file), value),
+                                Ok(mut cache) => cache.insert(&key, value),
                                 Err(_) => continue,
                             };
                         }
@@ -231,11 +222,12 @@ impl BranchHandler {
                             Some(new_file) => {
                                 let new_file = format!("{}/{}", self.repo_path, new_file);
                                 let content = self.get_file_content(&new_file);
-                                let value = Self::payload_to_value(&new_file, &content);
+                                let key = self.fix_key(&new_file);
+                                let value = payload::to_value(&key, &new_file, &content);
 
                                 match self.cache.write() {
                                     Ok(mut cache) => {
-                                        cache.insert(self.fix_key(&new_file), value);
+                                        cache.insert(key, value);
                                         cache.remove(&self.fix_key(&file)).unwrap();
                                     }
                                     Err(_) => continue,
@@ -267,8 +259,9 @@ impl BranchHandler {
 
         for file in files {
             let content = self.get_file_content(&file);
-            let value = Self::payload_to_value(&file, &content);
-            data.insert(self.fix_key(&file), value);
+            let key = self.fix_key(&file);
+            let value = payload::to_value(&key, &file, &content);
+            data.insert(key, value);
         }
 
         Ok(data)
@@ -295,7 +288,7 @@ impl BranchHandler {
     }
 
     fn is_valid_file(&self, path: &str) -> bool {
-        path.ends_with(EXT_JSON) || path.ends_with(EXT_YML) || path.ends_with(EXT_YAML)
+        payload::is_valid_file(path)
     }
 
     fn is_ignore(&self, key: &str) -> bool {

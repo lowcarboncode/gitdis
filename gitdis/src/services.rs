@@ -92,13 +92,10 @@ impl GitdisService {
 
         match self.gitdis.get_branch_cache(&branch_key) {
             Some(branch) => match branch.read() {
-                Ok(branch) => {
-                    println!("{:#?}", branch);
-                    match branch.get(&object_key) {
-                        Some(value) => Ok(Some(value.clone())),
-                        None => Ok(None),
-                    }
-                }
+                Ok(branch) => match branch.get(&object_key) {
+                    Some(value) => Ok(Some(value.clone())),
+                    None => Ok(None),
+                },
                 Err(err) => {
                     return Err(GitdisServiceError::InternalError(err.to_string()));
                 }
