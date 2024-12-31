@@ -21,7 +21,7 @@ pub fn parse_value(file: &str, content: &str) -> Value {
 /// Example:
 /// Input: { "key": { "key2": ["value1", {"key3": "value2"}] } }
 /// Output: { "key.key2.0": "value1", "key.key2.1.key3": "value2" }
-pub fn value_to_mapper(default_prefix: &str, value: Value) -> HashMap<String, Value> {
+pub fn value_to_mapper(value: Value) -> HashMap<String, Value> {
     fn flatten(value: &Value, prefix: String, mapper: &mut HashMap<String, Value>) {
         match value {
             Value::Object(obj) => {
@@ -55,13 +55,13 @@ pub fn value_to_mapper(default_prefix: &str, value: Value) -> HashMap<String, Va
     }
 
     let mut mapper = HashMap::new();
-    flatten(&value, default_prefix.to_string(), &mut mapper);
+    flatten(&value, String::new(), &mut mapper);
     mapper
 }
 
-pub fn to_value(key: &str, file: &str, content: &str) -> Value {
+pub fn to_value(file: &str, content: &str) -> Value {
     let value = parse_value(file, content);
-    let mapper = value_to_mapper(key, value).to_value();
+    let mapper = value_to_mapper(value).to_value();
     mapper
 }
 
@@ -98,7 +98,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper("data.content", value);
+        let mapper = value_to_mapper(value);
 
         assert_eq!(
             mapper
@@ -135,7 +135,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper("data.content", value);
+        let mapper = value_to_mapper(value);
 
         assert_eq!(
             mapper
@@ -161,7 +161,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper("data.content", value);
+        let mapper = value_to_mapper(value);
 
         assert_eq!(
             mapper.get("data.content.key1.key2.key3").unwrap(),
@@ -184,7 +184,7 @@ mod tests {
         )
         .unwrap();
 
-        let mapper = value_to_mapper("data.content", value);
+        let mapper = value_to_mapper(value);
 
         assert_eq!(
             mapper

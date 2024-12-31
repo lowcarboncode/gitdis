@@ -202,7 +202,7 @@ impl BranchHandler {
                             let content = self.get_file_content(&file);
                             let key: String = self.fix_key(&file);
 
-                            let value = payload::to_value(&key, &file, &content);
+                            let value = payload::to_value(&file, &content);
 
                             match self.cache.write() {
                                 Ok(mut cache) => cache.insert(&key, value),
@@ -223,7 +223,7 @@ impl BranchHandler {
                                 let new_file = format!("{}/{}", self.repo_path, new_file);
                                 let content = self.get_file_content(&new_file);
                                 let key = self.fix_key(&new_file);
-                                let value = payload::to_value(&key, &new_file, &content);
+                                let value = payload::to_value(&new_file, &content);
 
                                 match self.cache.write() {
                                     Ok(mut cache) => {
@@ -260,7 +260,7 @@ impl BranchHandler {
         for file in files {
             let content = self.get_file_content(&file);
             let key = self.fix_key(&file);
-            let value = payload::to_value(&key, &file, &content);
+            let value = payload::to_value(&file, &content);
             data.insert(key, value);
         }
 
