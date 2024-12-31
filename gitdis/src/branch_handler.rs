@@ -257,6 +257,7 @@ impl BranchHandler {
             .split(".")
             .next()
             .unwrap()
+            .replace("/", ".")
             .to_string()
     }
 
@@ -279,7 +280,7 @@ impl BranchHandler {
         match self.cache.write() {
             Ok(mut cache) => {
                 for (key, value) in data {
-                    cache.insert(self.fix_key(&key), value);
+                    cache.insert(&key, value);
                 }
             }
             Err(_) => (),

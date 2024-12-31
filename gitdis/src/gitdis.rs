@@ -33,7 +33,6 @@ pub struct Gitdis {
     branches: HashMap<String, Branch>,
     sender: Sender<Event>,
     pub receiver: Receiver<Event>,
-    listener_branch_active: bool,
 }
 
 #[derive(Clone)]
@@ -67,7 +66,6 @@ impl Gitdis {
             branches: HashMap::new(),
             sender,
             receiver,
-            listener_branch_active: false,
         }
     }
 

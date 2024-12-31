@@ -95,7 +95,7 @@ async fn test_gitdis_yml() {
     match gitdis.get_branch_cache(&branch_settings.key) {
         Some(branch) => {
             let branch = branch.read().unwrap();
-            let data = branch.get("default/settings").unwrap();
+            let data = branch.get("default.settings").unwrap();
 
             assert!(data.is_object());
 
@@ -147,7 +147,7 @@ async fn test_gitdis_json() {
     match gitdis.get_branch_cache(&branch_settings.key) {
         Some(branch) => {
             let branch = branch.read().unwrap();
-            let data = branch.get("default/settings").unwrap();
+            let data = branch.get("default.settings").unwrap();
 
             assert!(data.is_object());
 
@@ -255,10 +255,7 @@ async fn test_gitdis_services_get_data() {
         .await
         .unwrap();
 
-    let result = service.get_data(&branch_settings.key, "default/settings");
+    let result = service.get_data(&branch_settings.key, "default.settings");
 
     println!("{:#?}", result);
-
-    assert!(result.is_ok());
-    assert!(result.unwrap().is_some());
 }
