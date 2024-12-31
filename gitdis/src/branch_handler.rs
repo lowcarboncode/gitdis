@@ -82,7 +82,7 @@ impl BranchHandler {
         branch_name: String,
         cache: ArcCache,
         pull_request_interval_millis: u64,
-        target_path: Option<&str>,
+        target_path: Option<String>,
     ) -> Self {
         let repo_name = url.split("/").last().unwrap().replace(".git", "");
         let repo_path = format!("{}/{}", data_path, repo_name);

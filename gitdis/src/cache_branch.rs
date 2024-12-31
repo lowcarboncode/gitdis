@@ -8,8 +8,8 @@ use crate::cache::ArcCache;
 
 #[derive(Clone)]
 pub struct CacheBranch {
-    cache: ArcCache,
-    create_at: u128,
+    pub cache: ArcCache,
+    pub create_at: u128,
 }
 
 impl CacheBranch {
@@ -27,8 +27,8 @@ impl CacheBranch {
         }
     }
 
-    pub fn get_data(&self) -> ArcCache {
-        self.cache.clone()
+    pub fn get_data(&self) -> &ArcCache {
+        &self.cache
     }
 
     pub fn get_create_at(&self) -> u128 {

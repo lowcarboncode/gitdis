@@ -4,10 +4,16 @@ pub struct BranchSettings {
     pub branch_name: String,
     pub repo_key: String,
     pub pull_request_interval_millis: u64,
+    pub path_target: Option<String>,
 }
 
 impl BranchSettings {
-    pub fn new(url: String, branch_name: String, pull_request_interval_millis: u64) -> Self {
+    pub fn new(
+        url: String,
+        branch_name: String,
+        pull_request_interval_millis: u64,
+        path_target: Option<String>,
+    ) -> Self {
         let repo_key = Self::crete_repo_key(&url, &branch_name);
 
         Self {
@@ -15,6 +21,7 @@ impl BranchSettings {
             branch_name,
             repo_key,
             pull_request_interval_millis,
+            path_target,
         }
     }
 

@@ -24,16 +24,16 @@ async fn main() -> std::io::Result<()> {
         local_clone_path
     );
 
-    let (sender, receiver) = std::sync::mpsc::channel();
+    // let (sender, receiver) = std::sync::mpsc::channel();
 
-    let gitdis = Gitdis::from(GitdisSettings {
-        total_branch_items: 100,
-        local_clone_path,
-    });
+    // let gitdis = Gitdis::from(GitdisSettings {
+    //     total_branch_items: 100,
+    //     local_clone_path,
+    // });
 
-    let service = Arc::new(RwLock::new(GitdisService::new(sender, gitdis)));
+    // let service = Arc::new(RwLock::new(GitdisService::new(sender, gitdis)));
 
-    let server = HttpServer::new(http_port, service.clone());
+    // let server = HttpServer::new(http_port, service.clone());
 
     // tokio::spawn(async move {
     //     server.listen().await;

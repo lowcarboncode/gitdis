@@ -1,9 +1,10 @@
-use crate::branch_settings::BranchSettings;
+use crate::{branch_settings::BranchSettings, gitdis::GitdisSettings};
+use std::sync::mpsc::{Receiver, Sender};
 
 use super::gitdis::{Gitdis, GitdisError};
 use log::debug;
-use quickleaf::valu3::prelude::*;
-use std::sync::{mpsc::Sender, Arc, RwLock};
+use quickleaf::{valu3::prelude::*, Event};
+use std::sync::{Arc, RwLock};
 
 pub type ArcGitdisService = Arc<RwLock<GitdisService>>;
 
@@ -14,8 +15,7 @@ pub enum GitdisServiceError {
 }
 
 pub struct GitdisService {
-    sender: std::sync::mpsc::Sender<BranchSettings>,
-    pub gitdis: Gitdis,
+    gitdis: Gitdis,
 }
 
 #[derive(ToValue, ToJson)]
@@ -25,8 +25,10 @@ pub struct ObjectBranchData {
 }
 
 impl GitdisService {
-    pub fn new(sender: Sender<BranchSettings>, gitdis: Gitdis) -> Self {
-        Self { sender, gitdis }
+    pub fn new(settings: GitdisSettings, sender: Sender<Event>, receiver: Receiver<Event>) -> Self {
+        Self {
+            gitdis: Gitdis::new(settings, sender, receiver),
+        }
     }
 
     pub fn create_repo(
@@ -40,17 +42,18 @@ impl GitdisService {
                 let repo_key = settings.repo_key.clone();
                 let branch = self.gitdis.get_branch(&repo_key);
 
-                match self.sender.send(settings) {
-                    Ok(_) => match branch {
-                        Some(object) => Ok(ObjectBranchData {
-                            key: repo_key,
-                            create_at: object.cache.get_create_at(),
-                        }),
-                        None => Err(GitdisServiceError::InternalError(
-                            "Failed to get object".to_string(),
-                        )),
-                    },
-                    Err(err) => Err(GitdisServiceError::InternalError(err.to_string())),
+                match branch {
+                    Some(branch) => {
+                        let cache = branch.get_data().read().unwrap();
+
+                        Ok(ObjectBranchData {
+                            key: branch.get_settings().repo_key.clone(),
+                            create_at: branch.get_create_at(),
+                        })
+                    }
+                    None => Err(GitdisServiceError::InternalError(
+                        "Branch not found after adding repo".to_string(),
+                    )),
                 }
             }
             Err(err) => match err {

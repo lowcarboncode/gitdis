@@ -21,6 +21,8 @@ pub enum GitdisError {
     Sender(SendError<BranchSettings>),
     BranchNotFound,
 }
+
+#[derive(Clone)]
 pub struct GitdisSettings {
     pub total_branch_items: usize,
     pub local_clone_path: String,
@@ -35,8 +37,26 @@ pub struct Gitdis {
 
 #[derive(Clone)]
 pub struct Branch {
-    pub settings: BranchSettings,
-    pub cache: CacheBranch,
+    settings: BranchSettings,
+    cache: CacheBranch,
+}
+
+impl Branch {
+    pub fn new(settings: BranchSettings, cache: CacheBranch) -> Self {
+        Self { settings, cache }
+    }
+
+    pub fn get_data(&self) -> &ArcCache {
+        self.cache.get_data()
+    }
+
+    pub fn get_create_at(&self) -> u128 {
+        self.cache.get_create_at()
+    }
+
+    pub fn get_settings(&self) -> &BranchSettings {
+        &self.settings
+    }
 }
 
 impl Gitdis {
@@ -65,7 +85,7 @@ impl Gitdis {
         debug!("Branches: {:?}", self.branches.keys());
 
         match self.branches.get(repo_key) {
-            Some(branch) => Some(branch.cache.get_data()),
+            Some(branch) => Some(branch.cache.get_data().clone()),
             None => None,
         }
     }
@@ -91,11 +111,15 @@ impl Gitdis {
         Ok(())
     }
 
-    pub fn listen_branch(
-        &self,
-        repo_key: &str,
-        path_target: Option<&str>,
-    ) -> Result<thread::JoinHandle<()>, GitdisError> {
+    pub fn listen_all_branches(&self) {
+        for (repo_key, _) in self.branches.iter() {
+            if let Err(err) = self.listen_branch(repo_key) {
+                log::error!("Error listening branch: {:?}", err);
+            }
+        }
+    }
+
+    pub fn listen_branch(&self, repo_key: &str) -> Result<thread::JoinHandle<()>, GitdisError> {
         let branch: Branch = match self.get_branch(&repo_key) {
             Some(cache) => cache,
             None => {
@@ -107,9 +131,9 @@ impl Gitdis {
             self.settings.local_clone_path.clone(),
             branch.settings.url,
             branch.settings.branch_name,
-            branch.cache.get_data(),
+            branch.cache.get_data().clone(),
             branch.settings.pull_request_interval_millis,
-            path_target,
+            branch.settings.path_target,
         );
 
         Ok(thread::spawn(move || {
@@ -143,7 +167,7 @@ impl Gitdis {
 }
 
 #[macro_export]
-macro_rules! listen_events_thread {
+macro_rules! listen_events {
     ($gitdis:ident, $callback:expr) => {
         std::thread::spawn(move || {
             $gitdis.listen_events($callback);

@@ -1,10 +1,8 @@
-use std::{
-    sync::{mpsc, Arc, RwLock},
-    thread,
-};
+use std::sync::{mpsc, Arc, RwLock};
 
 use branch_settings::BranchSettings;
 use gitdis::{Gitdis, GitdisSettings};
+use prelude::GitdisService;
 use quickleaf::{
     prelude::{NumberBehavior, StringBehavior},
     Event,
@@ -16,7 +14,7 @@ const TEST_URL: &str = "https://github.com/lowcarboncode/gitdis-example-reposito
 
 #[test]
 fn test_branch_settings_get_repo_key() {
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
 
     let repo_key = branch_settings.repo_key;
     assert_eq!(repo_key, "lowcarboncode/gitdis-example-repository/main");
@@ -31,7 +29,7 @@ fn test_gitdis_add_repo() {
 
     let mut gitdis = Gitdis::from(settings);
 
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
 
     let result = gitdis.add_repo(branch_settings.clone());
     assert_eq!(result, Ok(()));
@@ -48,13 +46,11 @@ async fn test_gitdis_spawn_branch_listener() {
 
     let mut gitdis = Gitdis::new(settings, sender, receiver);
 
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000, None);
 
     gitdis.add_repo(branch_settings.clone()).unwrap();
 
-    gitdis
-        .listen_branch(&branch_settings.repo_key, None)
-        .unwrap();
+    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
 
     for event in gitdis.receiver.iter() {
         if let Event::Insert(data) = event {
@@ -75,13 +71,16 @@ async fn test_gitdis_yml() {
 
     let mut gitdis = Gitdis::new(settings, sender, receiver);
 
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+    let branch_settings = BranchSettings::new(
+        TEST_URL.to_string(),
+        "main".to_string(),
+        1000,
+        Some("default/settings.yml".to_string()),
+    );
 
     gitdis.add_repo(branch_settings.clone()).unwrap();
 
-    gitdis
-        .listen_branch(&branch_settings.repo_key, Some("default/settings.yml"))
-        .unwrap();
+    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
 
     let mut count = 0;
     for event in gitdis.receiver.iter() {
@@ -124,13 +123,16 @@ async fn test_gitdis_json() {
 
     let mut gitdis = Gitdis::new(settings, sender, receiver);
 
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+    let branch_settings = BranchSettings::new(
+        TEST_URL.to_string(),
+        "main".to_string(),
+        1000,
+        Some("default/settings.json".to_string()),
+    );
 
     gitdis.add_repo(branch_settings.clone()).unwrap();
 
-    gitdis
-        .listen_branch(&branch_settings.repo_key, Some("default/settings.json"))
-        .unwrap();
+    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
 
     let mut count = 0;
     for event in gitdis.receiver.iter() {
@@ -173,19 +175,22 @@ async fn test_gitdis_listen_events() {
 
     let mut gitdis = Gitdis::new(settings, sender, receiver);
 
-    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+    let branch_settings = BranchSettings::new(
+        TEST_URL.to_string(),
+        "main".to_string(),
+        1000,
+        Some("default/settings.json".to_string()),
+    );
 
     gitdis.add_repo(branch_settings.clone()).unwrap();
 
-    gitdis
-        .listen_branch(&branch_settings.repo_key, Some("default/settings.json"))
-        .unwrap();
+    gitdis.listen_branch(&branch_settings.repo_key).unwrap();
 
     let count = Arc::new(RwLock::new(0));
 
     let count_clone = count.clone();
 
-    listen_events_thread!(gitdis, move |event| {
+    listen_events!(gitdis, move |event| {
         if let Event::Insert(_) = event {
             let mut count = count_clone.write().unwrap();
             *count += 1;
@@ -197,4 +202,22 @@ async fn test_gitdis_listen_events() {
     }
 
     assert_eq!(*count.read().unwrap(), 1);
+}
+
+#[tokio::test]
+async fn test_gitdis_services_create_repo() {
+    let settings = GitdisSettings {
+        total_branch_items: 100,
+        local_clone_path: "data".to_string(),
+    };
+
+    let (sender, receiver) = mpsc::channel();
+
+    let mut service = GitdisService::new(settings, sender, receiver);
+
+    let branch_settings = BranchSettings::new(TEST_URL.to_string(), "main".to_string(), 1000);
+
+    let result = service.create_repo(branch_settings.clone());
+
+    assert_eq!(result.is_ok(), true);
 }
